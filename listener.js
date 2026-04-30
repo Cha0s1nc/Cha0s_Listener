@@ -9,6 +9,11 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
+// Serve sounds folder from next to the executable (or project root in dev)
+const SOUNDS_DIR = process.env.SOUNDS_DIR ||
+  (require('path').join(process.pkg ? require('path').dirname(process.execPath) : __dirname, 'sounds'));
+app.use('/sounds', express.static(SOUNDS_DIR));
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
@@ -185,12 +190,33 @@ app.post('/media', async (req, res) => {
   }
 });
 
-// Sound (placeholder — wire up to your audio player of choice)
+// Sound — tells the dashboard to play via Web Audio API
 app.post('/sound', async (req, res) => {
   const { sound } = req.body;
-  addLog('sound', '!sound', `Play: ${sound}`);
-  // TODO: implement sound playback (e.g. via afplay on Mac, or a sound board app)
-  console.log(`[SOUND] Would play: ${sound}`);
+  const fs = require('fs');
+  const path = require('path');
+
+  // If it's a URL, play it directly
+  if (sound.startsWith('http://') || sound.startsWith('https://')) {
+    broadcast({ event: 'play_sound', url: sound });
+    addLog('sound', '!sound', `Playing URL: ${sound}`);
+    return res.json({ ok: true });
+  }
+
+  // Otherwise look for a local file
+  const extensions = ['mp3', 'wav', 'ogg', 'flac'];
+  const found = extensions.find(ext =>
+    fs.existsSync(path.join(SOUNDS_DIR, `${sound}.${ext}`))
+  );
+
+  if (!found) {
+    addLog('sound', '!sound', `File not found: ${sound}`, false);
+    return res.status(404).json({ error: `Sound "${sound}" not found in sounds folder` });
+  }
+
+  const url = `/sounds/${sound}.${found}`;
+  broadcast({ event: 'play_sound', url });
+  addLog('sound', '!sound', `Playing: ${sound}.${found}`);
   res.json({ ok: true });
 });
 

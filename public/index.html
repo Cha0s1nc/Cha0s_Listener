@@ -308,6 +308,9 @@
           updateStats();
         } else if (data.event === 'status') {
           updateService(data.service, data.connected);
+        } else if (data.event === 'play_sound') {
+          const audio = new Audio(data.url);
+          audio.play().catch(err => console.warn('Audio play failed:', err));
         } else if (data.event === 'log') {
           addLog(data.entry);
         }
