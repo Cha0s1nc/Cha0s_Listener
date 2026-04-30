@@ -130,7 +130,7 @@ curl -X POST http://192.168.1.100/api/lights/on
 
 ## Networking
 
-The listener needs to be reachable by the bot. If the bot and listener are on different machines, use a tool like [Tailscale][https://www.tailscale.com] and set `LISTENER_URL` in the bot's `.env` to the IP of the machine running the listener:
+The listener needs to be reachable by the bot. If the bot and listener are on different machines, use a tool like [Tailscale](https://www.tailscale.com) and set `LISTENER_URL` in the bot's `.env` to the IP of the machine running the listener:
 
 ```env
 LISTENER_URL=http://x.x.x.x:3000
