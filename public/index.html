@@ -3,493 +3,292 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>cha0s_b0t — listener</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <title>Cha0s Listener</title>
   <style>
     :root {
-      --bg: #0a0a0f;
-      --surface: #10101a;
-      --border: #1e1e30;
-      --accent: #7c3aed;
-      --accent2: #a855f7;
-      --green: #22c55e;
-      --red: #ef4444;
-      --yellow: #eab308;
-      --text: #e2e8f0;
-      --muted: #64748b;
-      --mono: 'Share Tech Mono', monospace;
-      --sans: 'Barlow', sans-serif;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+      --bg: #111113;
+      --surface: #1c1c1e;
+      --surface2: #2c2c2e;
+      --border: #3a3a3c;
+      --accent: #6e4ff6;
+      --accent-glow: rgba(110, 79, 246, 0.25);
+      --green: #32d74b;
+      --red: #ff453a;
+      --yellow: #ffd60a;
+      --blue: #0a84ff;
+      --text: #f5f5f7;
+      --text2: #aeaeb2;
+      --text3: #636366;
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--sans);
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-
-    /* Scanline overlay */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(0,0,0,0.08) 2px,
-        rgba(0,0,0,0.08) 4px
-      );
-      pointer-events: none;
-      z-index: 100;
-    }
-
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1.25rem 2rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-
-    .wordmark {
-      font-family: var(--mono);
-      font-size: 1.1rem;
-      letter-spacing: 0.05em;
-    }
-
-    .wordmark span {
-      color: var(--accent2);
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    #ws-indicator {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-family: var(--mono);
-      font-size: 0.7rem;
-      color: var(--muted);
-    }
-
-    #ws-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--red);
-      transition: background 0.3s;
-    }
-
-    #ws-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      grid-template-rows: auto 1fr;
-      gap: 1px;
-      background: var(--border);
-      min-height: calc(100vh - 61px);
-    }
-
-    .panel {
-      background: var(--bg);
-      padding: 1.5rem;
-    }
-
-    /* Status panel */
-    .status-panel {
-      grid-row: 1 / 3;
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
-
-    .panel-label {
-      font-family: var(--mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.15em;
-      color: var(--muted);
-      text-transform: uppercase;
-      margin-bottom: 0.75rem;
-    }
-
-    .service-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      transition: border-color 0.3s;
-    }
-
-    .service-card.connected { border-color: rgba(34, 197, 94, 0.3); }
-    .service-card.disconnected { border-color: rgba(239, 68, 68, 0.2); }
-
-    .service-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .service-name {
-      font-weight: 700;
-      font-size: 0.95rem;
-      letter-spacing: 0.02em;
-    }
-
-    .badge {
-      font-family: var(--mono);
-      font-size: 0.65rem;
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-    }
-
-    .badge.ok { background: rgba(34,197,94,0.15); color: var(--green); }
-    .badge.err { background: rgba(239,68,68,0.15); color: var(--red); }
-
-    .service-detail {
-      font-family: var(--mono);
-      font-size: 0.7rem;
-      color: var(--muted);
-    }
-
-    /* Now playing */
-    .now-playing {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem 1.25rem;
-    }
-
-    #now-playing-text {
-      font-family: var(--mono);
-      font-size: 0.78rem;
-      color: var(--accent2);
-      line-height: 1.5;
-      min-height: 2.5rem;
-      word-break: break-word;
-    }
-
-    /* Stats */
-    .stats-row {
-      display: flex;
-      gap: 0.75rem;
-    }
-
-    .stat {
-      flex: 1;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      text-align: center;
-    }
-
-    .stat-value {
-      font-family: var(--mono);
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: var(--accent2);
-    }
-
-    .stat-label {
-      font-size: 0.65rem;
-      color: var(--muted);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-top: 0.2rem;
-    }
-
-    /* Log panel */
-    .log-panel {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .log-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 1rem;
-    }
-
-    .log-filters {
-      display: flex;
-      gap: 0.5rem;
-    }
-
-    .filter-btn {
-      font-family: var(--mono);
-      font-size: 0.65rem;
-      padding: 0.25rem 0.6rem;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-      letter-spacing: 0.05em;
-      transition: all 0.15s;
-    }
-
-    .filter-btn:hover, .filter-btn.active {
-      border-color: var(--accent);
-      color: var(--accent2);
-      background: rgba(124,58,237,0.1);
-    }
-
-    #log-container {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      max-height: calc(100vh - 180px);
-      padding-right: 4px;
-    }
-
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+    .app { display: grid; grid-template-rows: 48px 1fr; height: 100vh; overflow: hidden; }
+    header { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); -webkit-app-region: drag; user-select: none; }
+    .titlebar-left { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
+    .app-icon { width: 20px; height: 20px; background: var(--accent); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: white; font-weight: 700; }
+    .app-title { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+    .titlebar-right { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
+    .ws-pill { display: flex; align-items: center; gap: 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px 3px 7px; font-size: 11px; color: var(--text2); }
+    .ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); transition: background 0.3s, box-shadow 0.3s; }
+    .ws-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .tab-bar { display: flex; gap: 2px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+    .tab-btn { font-family: var(--font); font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 6px; border: none; background: transparent; color: var(--text2); cursor: pointer; transition: all 0.15s; }
+    .tab-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+    .content { display: grid; grid-template-columns: 240px 1fr; overflow: hidden; }
+    .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+    .sidebar-section { display: flex; flex-direction: column; gap: 4px; }
+    .section-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 8px; margin-bottom: 2px; }
+    .service-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: var(--surface2); border-radius: 8px; border: 1px solid var(--border); transition: border-color 0.3s; }
+    .service-row.connected { border-color: rgba(50,215,75,0.3); }
+    .service-row.disconnected { border-color: rgba(255,69,58,0.2); }
+    .service-info { display: flex; flex-direction: column; gap: 2px; }
+    .service-name { font-size: 13px; font-weight: 600; }
+    .service-detail { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
+    .status-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; letter-spacing: 0.04em; }
+    .status-badge.ok { background: rgba(50,215,75,0.15); color: var(--green); }
+    .status-badge.err { background: rgba(255,69,58,0.15); color: var(--red); }
+    .now-playing-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+    #now-playing-text { font-size: 12px; color: var(--text); line-height: 1.4; word-break: break-word; }
+    .stats-row { display: flex; gap: 6px; }
+    .stat-card { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; text-align: center; }
+    .stat-value { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    .stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 1px; }
+    .main-panel { display: flex; flex-direction: column; overflow: hidden; }
+    .panel-view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+    .panel-view.active { display: flex; }
+    .log-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+    .filter-group { display: flex; gap: 4px; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 2px; }
+    .filter-btn { font-family: var(--font); font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 5px; border: none; background: transparent; color: var(--text2); cursor: pointer; transition: all 0.15s; }
+    .filter-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+    #log-container { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
     #log-container::-webkit-scrollbar { width: 4px; }
-    #log-container::-webkit-scrollbar-track { background: transparent; }
     #log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-    .log-entry {
-      display: grid;
-      grid-template-columns: 80px 60px 80px 1fr auto;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.6rem 0.875rem;
-      background: var(--surface);
-      border-radius: 6px;
-      border-left: 3px solid transparent;
-      font-family: var(--mono);
-      font-size: 0.72rem;
-      animation: slideIn 0.2s ease;
-      transition: opacity 0.2s;
-    }
-
+    .log-entry { display: grid; grid-template-columns: 70px 64px 72px 1fr 16px; align-items: center; gap: 8px; padding: 7px 10px; background: var(--surface); border-radius: 7px; border-left: 2px solid transparent; animation: fadeIn 0.15s ease; }
     .log-entry.hidden { display: none; }
-
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(-4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .log-entry.ok { border-left-color: rgba(34,197,94,0.4); }
-    .log-entry.err { border-left-color: var(--red); background: rgba(239,68,68,0.05); }
-
-    .log-time { color: var(--muted); font-size: 0.65rem; }
-
-    .log-type {
-      padding: 0.15rem 0.4rem;
-      border-radius: 3px;
-      font-size: 0.62rem;
-      letter-spacing: 0.05em;
-      text-align: center;
-      font-weight: 600;
-    }
-
-    .log-type.obs { background: rgba(99,102,241,0.2); color: #818cf8; }
-    .log-type.jellyfin { background: rgba(168,85,247,0.2); color: var(--accent2); }
-    .log-type.sound { background: rgba(234,179,8,0.2); color: var(--yellow); }
-    .log-type.system { background: rgba(100,116,139,0.2); color: var(--muted); }
-
-    .log-command { color: var(--accent2); }
-    .log-detail { color: var(--text); opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .log-status { font-size: 0.65rem; }
-    .log-status.ok { color: var(--green); }
-    .log-status.err { color: var(--red); }
-
-    /* Pulse animation for new entries */
-    .pulse {
-      animation: pulse 0.4s ease;
-    }
-    @keyframes pulse {
-      0% { background: rgba(124,58,237,0.2); }
-      100% { background: var(--surface); }
-    }
-
-    /* Top stats panel */
-    .top-panel {
-      padding: 1.25rem 1.5rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-    }
-
-    .top-inner {
-      display: flex;
-      align-items: center;
-      gap: 2rem;
-    }
-
-    .divider {
-      width: 1px;
-      height: 2rem;
-      background: var(--border);
-    }
-
-    .top-stat {
-      display: flex;
-      flex-direction: column;
-      gap: 0.1rem;
-    }
-
-    .top-stat-val {
-      font-family: var(--mono);
-      font-size: 1.2rem;
-      color: var(--accent2);
-      font-weight: 600;
-    }
-
-    .top-stat-label {
-      font-size: 0.62rem;
-      color: var(--muted);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .now-playing-inline {
-      flex: 1;
-      font-family: var(--mono);
-      font-size: 0.75rem;
-      color: var(--accent2);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .now-playing-inline .label {
-      color: var(--muted);
-      margin-right: 0.5rem;
-    }
-
-    /* Glow effect on header accent */
-    .wordmark::before {
-      content: '◈ ';
-      color: var(--accent);
-    }
+    .log-entry.ok { border-left-color: rgba(50,215,75,0.5); }
+    .log-entry.err { border-left-color: var(--red); background: rgba(255,69,58,0.06); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+    .log-time { font-family: var(--font-mono); font-size: 11px; color: var(--text3); }
+    .log-type { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; text-align: center; letter-spacing: 0.03em; }
+    .log-type.obs { background: rgba(10,132,255,0.15); color: var(--blue); }
+    .log-type.jellyfin { background: rgba(110,79,246,0.15); color: #a78bfa; }
+    .log-type.sound { background: rgba(255,214,10,0.15); color: var(--yellow); }
+    .log-type.system { background: rgba(99,99,102,0.2); color: var(--text2); }
+    .log-command { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
+    .log-detail { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-ok { font-size: 11px; }
+    .log-ok.ok { color: var(--green); }
+    .log-ok.err { color: var(--red); }
+    .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; }
+    .settings-view { flex: 1; overflow-y: auto; padding: 20px; }
+    .settings-view::-webkit-scrollbar { width: 4px; }
+    .settings-view::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .settings-group { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+    .settings-group-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 14px 8px; border-bottom: 1px solid var(--border); }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; gap: 16px; border-bottom: 1px solid var(--border); }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+    .setting-name { font-size: 13px; font-weight: 500; color: var(--text); }
+    .setting-desc { font-size: 11px; color: var(--text3); }
+    .setting-input { font-family: var(--font-mono); font-size: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 5px 9px; width: 220px; outline: none; transition: border-color 0.15s; }
+    .setting-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .input-wrap { position: relative; width: 220px; }
+    .input-wrap .setting-input { width: 100%; padding-right: 30px; }
+    .eye-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text3); cursor: pointer; font-size: 13px; padding: 0; line-height: 1; }
+    .settings-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 0 0; align-items: center; }
+    .btn { font-family: var(--font); font-size: 13px; font-weight: 500; padding: 6px 16px; border-radius: 7px; border: none; cursor: pointer; transition: all 0.15s; }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: #7c5ff7; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--border); }
+    .save-status { font-size: 12px; color: var(--green); opacity: 0; transition: opacity 0.3s; }
+    .save-status.visible { opacity: 1; }
   </style>
 </head>
 <body>
-  <header>
-    <div class="wordmark">cha0s_b0t <span>/ listener</span></div>
-    <div class="header-right">
-      <div id="ws-indicator">
-        <div id="ws-dot"></div>
-        <span id="ws-label">connecting</span>
+  <div class="app">
+    <header>
+      <div class="titlebar-left">
+        <div class="app-icon">C</div>
+        <div class="app-title">Cha0s Listener</div>
       </div>
-    </div>
-  </header>
-
-  <div class="grid">
-    <!-- Left: status panel -->
-    <aside class="panel status-panel">
-      <div>
-        <div class="panel-label">Services</div>
-        <div style="display:flex;flex-direction:column;gap:0.75rem;">
-          <div class="service-card" id="obs-card">
-            <div class="service-header">
-              <span class="service-name">OBS</span>
-              <span class="badge err" id="obs-badge">OFFLINE</span>
+      <div class="titlebar-right">
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+          <button class="tab-btn" data-tab="settings">Settings</button>
+        </div>
+        <div class="ws-pill">
+          <div class="ws-dot" id="ws-dot"></div>
+          <span id="ws-label">connecting</span>
+        </div>
+      </div>
+    </header>
+    <div class="content">
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <div class="section-label">Services</div>
+          <div class="service-row disconnected" id="obs-card">
+            <div class="service-info">
+              <div class="service-name">OBS</div>
+              <div class="service-detail" id="obs-detail">ws://localhost:4455</div>
             </div>
-            <div class="service-detail" id="obs-detail">WebSocket — localhost:4455</div>
+            <span class="status-badge err" id="obs-badge">Offline</span>
           </div>
-          <div class="service-card" id="jf-card">
-            <div class="service-header">
-              <span class="service-name">Jellyfin</span>
-              <span class="badge err" id="jf-badge">OFFLINE</span>
+          <div class="service-row disconnected" id="jf-card">
+            <div class="service-info">
+              <div class="service-name">Jellyfin</div>
+              <div class="service-detail" id="jf-detail">Checking...</div>
             </div>
-            <div class="service-detail" id="jf-detail">Checking...</div>
+            <span class="status-badge err" id="jf-badge">Offline</span>
           </div>
         </div>
-      </div>
-
-      <div>
-        <div class="panel-label">Now Playing</div>
-        <div class="now-playing">
-          <div id="now-playing-text">—</div>
-        </div>
-      </div>
-
-      <div>
-        <div class="panel-label">Session Stats</div>
-        <div class="stats-row">
-          <div class="stat">
-            <div class="stat-value" id="stat-total">0</div>
-            <div class="stat-label">Commands</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value" id="stat-errors">0</div>
-            <div class="stat-label">Errors</div>
+        <div class="sidebar-section">
+          <div class="section-label">Now Playing</div>
+          <div class="now-playing-card">
+            <div id="now-playing-text">—</div>
           </div>
         </div>
-      </div>
-    </aside>
-
-    <!-- Right top: filters -->
-    <div class="top-panel">
-      <div class="log-header">
-        <div class="panel-label" style="margin:0">Command Log</div>
-        <div class="log-filters">
-          <button class="filter-btn active" data-filter="all">ALL</button>
-          <button class="filter-btn" data-filter="obs">OBS</button>
-          <button class="filter-btn" data-filter="jellyfin">JELLYFIN</button>
-          <button class="filter-btn" data-filter="sound">SOUND</button>
-          <button class="filter-btn" data-filter="err">ERRORS</button>
+        <div class="sidebar-section">
+          <div class="section-label">Session</div>
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-value" id="stat-total">0</div>
+              <div class="stat-label">Commands</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="stat-errors">0</div>
+              <div class="stat-label">Errors</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Right: log -->
-    <div class="panel log-panel">
-      <div id="log-container">
-        <div style="font-family:var(--mono);font-size:0.72rem;color:var(--muted);padding:1rem 0;">
-          Waiting for commands...
+      </aside>
+      <div class="main-panel">
+        <div class="panel-view active" id="tab-dashboard">
+          <div class="log-toolbar">
+            <div class="filter-group">
+              <button class="filter-btn active" data-filter="all">All</button>
+              <button class="filter-btn" data-filter="obs">OBS</button>
+              <button class="filter-btn" data-filter="jellyfin">Jellyfin</button>
+              <button class="filter-btn" data-filter="sound">Sound</button>
+              <button class="filter-btn" data-filter="err">Errors</button>
+            </div>
+          </div>
+          <div id="log-container">
+            <div class="empty-state">Waiting for commands...</div>
+          </div>
+        </div>
+        <div class="panel-view" id="tab-settings">
+          <div class="settings-view">
+            <div class="settings-group">
+              <div class="settings-group-title">Jellyfin</div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Server URL</div>
+                  <div class="setting-desc">e.g. http://100.82.141.92:8097</div>
+                </div>
+                <input class="setting-input" id="cfg-jellyfin-url" type="text" placeholder="http://..." />
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">API Key</div>
+                  <div class="setting-desc">Dashboard → API Keys</div>
+                </div>
+                <div class="input-wrap">
+                  <input class="setting-input" id="cfg-jellyfin-key" type="password" placeholder="••••••••" />
+                  <button class="eye-btn" data-target="cfg-jellyfin-key">👁</button>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Device ID</div>
+                  <div class="setting-desc">Dashboard → Devices — leave blank for auto</div>
+                </div>
+                <input class="setting-input" id="cfg-jellyfin-device" type="text" placeholder="Optional" />
+              </div>
+            </div>
+            <div class="settings-group">
+              <div class="settings-group-title">OBS WebSocket</div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Host</div>
+                  <div class="setting-desc">Usually localhost</div>
+                </div>
+                <input class="setting-input" id="cfg-obs-host" type="text" placeholder="localhost" />
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Port</div>
+                  <div class="setting-desc">Default is 4455</div>
+                </div>
+                <input class="setting-input" id="cfg-obs-port" type="text" placeholder="4455" />
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Password</div>
+                  <div class="setting-desc">Tools → WebSocket Server Settings</div>
+                </div>
+                <div class="input-wrap">
+                  <input class="setting-input" id="cfg-obs-password" type="password" placeholder="••••••••" />
+                  <button class="eye-btn" data-target="cfg-obs-password">👁</button>
+                </div>
+              </div>
+            </div>
+            <div class="settings-group">
+              <div class="settings-group-title">Twitch</div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Bot Username</div>
+                  <div class="setting-desc">Your bot account's username</div>
+                </div>
+                <input class="setting-input" id="cfg-twitch-username" type="text" placeholder="cha0s_b0t" />
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">OAuth Token</div>
+                  <div class="setting-desc">Get from twitchapps.com/tmi</div>
+                </div>
+                <div class="input-wrap">
+                  <input class="setting-input" id="cfg-twitch-oauth" type="password" placeholder="oauth:••••••••" />
+                  <button class="eye-btn" data-target="cfg-twitch-oauth">👁</button>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Channel</div>
+                  <div class="setting-desc">Your Twitch channel name</div>
+                </div>
+                <input class="setting-input" id="cfg-twitch-channel" type="text" placeholder="cha0s_1nc" />
+              </div>
+            </div>
+            <div class="settings-group">
+              <div class="settings-group-title">Listener</div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Port</div>
+                  <div class="setting-desc">Port the listener runs on</div>
+                </div>
+                <input class="setting-input" id="cfg-listener-port" type="text" placeholder="3000" />
+              </div>
+            </div>
+            <div class="settings-actions">
+              <span class="save-status" id="save-status">✓ Saved</span>
+              <button class="btn btn-secondary" id="btn-reset">Reset</button>
+              <button class="btn btn-primary" id="btn-save">Save Settings</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-
   <script>
-    let ws;
-    let totalCommands = 0;
-    let totalErrors = 0;
-    let activeFilter = 'all';
-    let currentSong = null;
-    let songPollInterval;
+    let ws, totalCommands = 0, totalErrors = 0, activeFilter = 'all', songPollInterval;
 
     function connect() {
       ws = new WebSocket(`ws://${location.host}`);
-
-      ws.onopen = () => {
-        document.getElementById('ws-dot').classList.add('live');
-        document.getElementById('ws-label').textContent = 'live';
-      };
-
-      ws.onclose = () => {
-        document.getElementById('ws-dot').classList.remove('live');
-        document.getElementById('ws-label').textContent = 'reconnecting';
-        setTimeout(connect, 3000);
-      };
-
+      ws.onopen = () => { document.getElementById('ws-dot').classList.add('live'); document.getElementById('ws-label').textContent = 'live'; };
+      ws.onclose = () => { document.getElementById('ws-dot').classList.remove('live'); document.getElementById('ws-label').textContent = 'reconnecting'; setTimeout(connect, 3000); };
       ws.onmessage = (e) => {
         const data = JSON.parse(e.data);
         if (data.event === 'init') {
@@ -508,113 +307,131 @@
     }
 
     function updateService(service, connected) {
-      const card = document.getElementById(`${service === 'jellyfin' ? 'jf' : service}-card`);
-      const badge = document.getElementById(`${service === 'jellyfin' ? 'jf' : service}-badge`);
-      const detail = document.getElementById(`${service === 'jellyfin' ? 'jf' : service}-detail`);
-
-      card.className = `service-card ${connected ? 'connected' : 'disconnected'}`;
-      badge.className = `badge ${connected ? 'ok' : 'err'}`;
-      badge.textContent = connected ? 'ONLINE' : 'OFFLINE';
-
+      const id = service === 'jellyfin' ? 'jf' : service;
+      document.getElementById(`${id}-card`).className = `service-row ${connected ? 'connected' : 'disconnected'}`;
+      const badge = document.getElementById(`${id}-badge`);
+      badge.className = `status-badge ${connected ? 'ok' : 'err'}`;
+      badge.textContent = connected ? 'Online' : 'Offline';
       if (service === 'jellyfin') {
-        detail.textContent = connected ? 'Connected — polling every 30s' : 'Unreachable';
+        document.getElementById('jf-detail').textContent = connected ? 'Connected' : 'Unreachable';
         if (connected) startSongPoll();
-        else {
-          clearInterval(songPollInterval);
-          document.getElementById('now-playing-text').textContent = '—';
-        }
+        else { clearInterval(songPollInterval); document.getElementById('now-playing-text').textContent = '—'; }
       }
     }
 
-    function startSongPoll() {
-      fetchSong();
-      clearInterval(songPollInterval);
-      songPollInterval = setInterval(fetchSong, 15000);
-    }
+    function startSongPoll() { fetchSong(); clearInterval(songPollInterval); songPollInterval = setInterval(fetchSong, 15000); }
 
     async function fetchSong() {
       try {
-        const res = await fetch('/media', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'song' })
-        });
+        const res = await fetch('/media', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'song' }) });
         const data = await res.json();
-        const el = document.getElementById('now-playing-text');
-        if (data.nothing || !data.song) {
-          el.textContent = 'Nothing playing';
-          currentSong = null;
-        } else {
-          el.textContent = data.song;
-          currentSong = data.song;
-        }
-      } catch {
-        document.getElementById('now-playing-text').textContent = 'Could not reach Jellyfin';
-      }
+        document.getElementById('now-playing-text').textContent = (data.nothing || !data.song) ? 'Nothing playing' : data.song;
+      } catch { document.getElementById('now-playing-text').textContent = 'Could not reach Jellyfin'; }
     }
 
     function addLog(entry) {
-      // Remove placeholder
-      const placeholder = document.querySelector('#log-container > div');
-      if (placeholder && !placeholder.classList.contains('log-entry')) placeholder.remove();
-
-      totalCommands++;
-      if (!entry.ok) totalErrors++;
-      updateStats();
-
-      renderLog(entry, true);
+      const empty = document.querySelector('.empty-state');
+      if (empty) empty.remove();
+      totalCommands++; if (!entry.ok) totalErrors++;
+      updateStats(); renderLog(entry, true);
     }
 
     function renderLog(entry, prepend) {
       const container = document.getElementById('log-container');
       const time = new Date(entry.time).toLocaleTimeString('en-US', { hour12: false });
-
       const el = document.createElement('div');
       el.className = `log-entry ${entry.ok ? 'ok' : 'err'}`;
-      el.dataset.type = entry.type;
-      el.dataset.ok = entry.ok;
-      if (prepend) el.classList.add('pulse');
-
-      el.innerHTML = `
-        <span class="log-time">${time}</span>
-        <span class="log-type ${entry.type}">${entry.type.toUpperCase()}</span>
-        <span class="log-command">${entry.command}</span>
-        <span class="log-detail" title="${entry.detail}">${entry.detail}</span>
-        <span class="log-status ${entry.ok ? 'ok' : 'err'}">${entry.ok ? '✓' : '✗'}</span>
-      `;
-
+      el.dataset.type = entry.type; el.dataset.ok = entry.ok;
+      el.innerHTML = `<span class="log-time">${time}</span><span class="log-type ${entry.type}">${entry.type.toUpperCase()}</span><span class="log-command">${entry.command}</span><span class="log-detail" title="${entry.detail}">${entry.detail}</span><span class="log-ok ${entry.ok ? 'ok' : 'err'}">${entry.ok ? '✓' : '✗'}</span>`;
       applyFilter(el);
-
-      if (prepend) {
-        container.prepend(el);
-      } else {
-        container.append(el);
-      }
+      prepend ? container.prepend(el) : container.append(el);
     }
 
     function applyFilter(el) {
-      if (activeFilter === 'all') {
-        el.classList.remove('hidden');
-      } else if (activeFilter === 'err') {
-        el.classList.toggle('hidden', el.dataset.ok === 'true');
-      } else {
-        el.classList.toggle('hidden', el.dataset.type !== activeFilter);
-      }
+      if (activeFilter === 'all') el.classList.remove('hidden');
+      else if (activeFilter === 'err') el.classList.toggle('hidden', el.dataset.ok === 'true');
+      else el.classList.toggle('hidden', el.dataset.type !== activeFilter);
     }
 
-    function updateStats() {
-      document.getElementById('stat-total').textContent = totalCommands;
-      document.getElementById('stat-errors').textContent = totalErrors;
-    }
+    function updateStats() { document.getElementById('stat-total').textContent = totalCommands; document.getElementById('stat-errors').textContent = totalErrors; }
 
-    // Filter buttons
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        activeFilter = btn.dataset.filter;
+        btn.classList.add('active'); activeFilter = btn.dataset.filter;
         document.querySelectorAll('.log-entry').forEach(applyFilter);
       });
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.panel-view').forEach(v => v.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+        if (btn.dataset.tab === 'settings') loadSettings();
+      });
+    });
+
+    const fields = {
+      'cfg-jellyfin-url': 'JELLYFIN_URL',
+      'cfg-jellyfin-key': 'JELLYFIN_API_KEY',
+      'cfg-jellyfin-device': 'JELLYFIN_DEVICE_ID',
+      'cfg-obs-host': 'OBS_HOST',
+      'cfg-obs-port': 'OBS_PORT',
+      'cfg-obs-password': 'OBS_PASSWORD',
+      'cfg-twitch-username': 'TWITCH_USERNAME',
+      'cfg-twitch-oauth': 'TWITCH_OAUTH',
+      'cfg-twitch-channel': 'TWITCH_CHANNEL',
+      'cfg-listener-port': 'LISTENER_PORT'
+    };
+
+    const isElectron = !!window.electronAPI;
+
+    async function loadSettings() {
+      try {
+        let saved = {};
+        if (isElectron) {
+          saved = await window.electronAPI.getSettings();
+        } else {
+          saved = JSON.parse(localStorage.getItem('cha0s_settings') || '{}');
+        }
+        Object.entries(fields).forEach(([id, key]) => {
+          const el = document.getElementById(id);
+          if (el && saved[key]) el.value = saved[key];
+        });
+      } catch {}
+    }
+
+    document.getElementById('btn-save').addEventListener('click', async () => {
+      const settings = {};
+      Object.entries(fields).forEach(([id, key]) => {
+        const val = document.getElementById(id)?.value?.trim();
+        if (val) settings[key] = val;
+      });
+      if (isElectron) {
+        await window.electronAPI.saveSettings(settings);
+      } else {
+        localStorage.setItem('cha0s_settings', JSON.stringify(settings));
+        try { await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) }); } catch {}
+      }
+      const status = document.getElementById('save-status');
+      status.classList.add('visible'); setTimeout(() => status.classList.remove('visible'), 3000);
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', async () => {
+      if (isElectron) {
+        const empty = {};
+        Object.values(fields).forEach(k => empty[k] = '');
+        await window.electronAPI.saveSettings(empty);
+      } else {
+        localStorage.removeItem('cha0s_settings');
+      }
+      Object.keys(fields).forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    });
+
+    document.querySelectorAll('.eye-btn').forEach(btn => {
+      btn.addEventListener('click', () => { const input = document.getElementById(btn.dataset.target); input.type = input.type === 'password' ? 'text' : 'password'; });
     });
 
     connect();

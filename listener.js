@@ -1,4 +1,5 @@
-require('dotenv').config({ path: require('path').join(process.execPath, '..', '.env') });
+const dotenvPath = process.env.DOTENV_CONFIG_PATH || require('path').join(__dirname, '.env');
+require('dotenv').config({ path: dotenvPath });
 const express = require('express');
 const http = require('http');
 const { WebSocketServer, WebSocket } = require('ws');
@@ -22,8 +23,21 @@ const OBS_PASSWORD = process.env.OBS_PASSWORD;
 const state = {
   obs: { connected: false, reconnecting: false },
   jellyfin: { connected: false, lastChecked: null },
+  bot: { connected: false, lastSeen: null },
   log: []
 };
+
+// Bot timeout — mark as disconnected if no ping for 45s
+setInterval(() => {
+  if (state.bot.connected && state.bot.lastSeen) {
+    const elapsed = Date.now() - new Date(state.bot.lastSeen).getTime();
+    if (elapsed > 45000) {
+      state.bot.connected = false;
+      broadcast({ event: 'status', service: 'bot', connected: false });
+      addLog('system', 'bot', 'Bot stopped pinging — disconnected', false);
+    }
+  }
+}, 15000);
 
 // --- Dashboard WebSocket broadcast ---
 function broadcast(data) {
@@ -97,8 +111,7 @@ async function jellyfinRequest(path, method = 'GET', body = null) {
 
 async function getActiveSession() {
   const sessions = await jellyfinRequest('/Sessions');
-  const deviceId = process.env.JELLYFIN_DEVICE_ID;
-  return sessions?.find(s => s.NowPlayingItem && s.DeviceId === deviceId) || null;
+  return sessions?.find(s => s.NowPlayingItem) || null;
 }
 
 async function checkJellyfinConnection() {
@@ -249,13 +262,52 @@ app.post('/run', async (req, res) => {
   });
 });
 
+// Bot ping endpoint
+app.post('/ping', (req, res) => {
+  const wasConnected = state.bot.connected;
+  state.bot.connected = true;
+  state.bot.lastSeen = new Date().toISOString();
+  if (!wasConnected) {
+    broadcast({ event: 'status', service: 'bot', connected: true });
+    addLog('system', 'bot', 'Bot connected');
+  }
+  res.json({ ok: true });
+});
+
 // Dashboard state endpoint
 app.get('/api/state', (req, res) => {
   res.json({
     obs: state.obs,
     jellyfin: state.jellyfin,
+    bot: state.bot,
     log: state.log
   });
+});
+
+// Settings — update running config from dashboard
+app.post('/settings', (req, res) => {
+  const allowed = ['JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_DEVICE_ID', 'OBS_HOST', 'OBS_PORT', 'OBS_PASSWORD', 'LISTENER_PORT'];
+  const updated = [];
+  for (const [key, value] of Object.entries(req.body)) {
+    if (allowed.includes(key)) {
+      process.env[key] = value;
+      updated.push(key);
+    }
+  }
+  addLog('system', 'settings', `Updated: ${updated.join(', ')}`);
+  // Reconnect OBS if its settings changed
+  if (updated.some(k => k.startsWith('OBS_'))) {
+    state.obs.connected = false;
+    state.obs.reconnecting = false;
+    obs.disconnect().catch(() => {});
+    setTimeout(connectOBS, 500);
+  }
+  // Recheck Jellyfin if its settings changed
+  if (updated.some(k => k.startsWith('JELLYFIN_'))) {
+    state.jellyfin.connected = false;
+    checkJellyfinConnection();
+  }
+  res.json({ ok: true, updated });
 });
 
 // Dashboard WebSocket — send current state on connect
@@ -264,6 +316,7 @@ wss.on('connection', (ws) => {
     event: 'init',
     obs: state.obs,
     jellyfin: state.jellyfin,
+    bot: state.bot,
     log: state.log
   }));
 });

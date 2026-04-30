@@ -1,20 +1,54 @@
 {
   "name": "cha0s-listener",
   "version": "1.0.0",
-  "main": "listener.js",
-  "bin": "listener.js",
+  "description": "Cha0s Bot Listener — OBS & Jellyfin bridge with dashboard",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node listener.js",
-    "build": "pkg . --out-path dist"
+    "electron": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:all": "electron-builder --mac --win"
   },
-  "pkg": {
-  "targets": ["node18-macos-arm64", "node18-win-x64"],
-  "assets": ["public/**/*"]
-},
+  "build": {
+    "appId": "com.cha0sinc.listener",
+    "productName": "Cha0s Listener",
+    "files": [
+      "electron/**/*",
+      "listener.js",
+      "public/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "public",
+        "to": "public"
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
   "dependencies": {
+    "dotenv": "^16.0.0",
+    "electron-store": "^8.2.0",
     "express": "^4.18.2",
     "obs-websocket-js": "^5.0.3",
-    "ws": "^8.14.2",
-    "dotenv": "^16.0.0"
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^24.0.0"
   }
 }
