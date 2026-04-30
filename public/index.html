@@ -143,6 +143,13 @@
             </div>
             <span class="status-badge err" id="jf-badge">Offline</span>
           </div>
+          <div class="service-row disconnected" id="bot-card">
+            <div class="service-info">
+              <div class="service-name">Bot</div>
+              <div class="service-detail" id="bot-detail">Waiting for ping...</div>
+            </div>
+            <span class="status-badge err" id="bot-badge">Offline</span>
+          </div>
         </div>
         <div class="sidebar-section">
           <div class="section-label">Now Playing</div>
@@ -294,6 +301,7 @@
         if (data.event === 'init') {
           updateService('obs', data.obs.connected);
           updateService('jellyfin', data.jellyfin.connected);
+          updateService('bot', data.bot.connected);
           data.log.forEach(entry => renderLog(entry, false));
           totalCommands = data.log.length;
           totalErrors = data.log.filter(l => !l.ok).length;
@@ -316,6 +324,9 @@
         document.getElementById('jf-detail').textContent = connected ? 'Connected' : 'Unreachable';
         if (connected) startSongPoll();
         else { clearInterval(songPollInterval); document.getElementById('now-playing-text').textContent = '—'; }
+      }
+      if (service === 'bot') {
+        document.getElementById('bot-detail').textContent = connected ? 'Pinging every 30s' : 'Waiting for ping...';
       }
     }
 
