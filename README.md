@@ -35,7 +35,7 @@ All settings are configured from within the app under the **Settings** tab. No `
 
 | Setting | Description |
 |---------|-------------|
-| Server URL | Your Jellyfin server address, e.g. `http://100.82.141.92:8097` |
+| Server URL | Your Jellyfin server address, e.g. `http://x.x.x.x:8096` |
 | API Key | Generated in Jellyfin under **Dashboard → API Keys** |
 | Device ID | Found under **Dashboard → Devices** — leave blank to use the first active session |
 
@@ -54,7 +54,7 @@ All settings are configured from within the app under the **Settings** tab. No `
 | Setting | Description |
 |---------|-------------|
 | Bot Username | Your bot account's Twitch username |
-| OAuth Token | Get one at [twitchapps.com/tmi](https://twitchapps.com/tmi) |
+| OAuth Token | Get one at through Twitch's Bot tools |
 | Channel | Your Twitch channel name |
 
 ### Listener
@@ -130,10 +130,10 @@ curl -X POST http://192.168.1.100/api/lights/on
 
 ## Networking
 
-The listener needs to be reachable by the bot. If the bot and listener are on different machines, use [Tailscale](https://tailscale.com) and set `LISTENER_URL` in the bot's `.env` to the Tailscale IP of the machine running the listener:
+The listener needs to be reachable by the bot. If the bot and listener are on different machines, use a tool like [Tailscale][https://www.tailscale.com] and set `LISTENER_URL` in the bot's `.env` to the IP of the machine running the listener:
 
 ```env
-LISTENER_URL=http://100.x.x.x:3000
+LISTENER_URL=http://x.x.x.x:3000
 ```
 
 ---
