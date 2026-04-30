@@ -7,7 +7,7 @@ const OBSWebSocket = require('obs-websocket-js').default;
 
 const app = express();
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(require('path').join(__dirname, 'public')));
 
 // Serve sounds folder from next to the executable (or project root in dev)
 const SOUNDS_DIR = process.env.SOUNDS_DIR ||

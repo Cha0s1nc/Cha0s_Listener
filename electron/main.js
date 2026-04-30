@@ -38,7 +38,7 @@ function getConfig() {
 
 function startListener(config) {
   const listenerPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'app', 'listener.js')
+    ? path.join(process.resourcesPath, 'app.asar', 'listener.js')
     : path.join(__dirname, '..', 'listener.js');
 
   if (listenerProcess) {
