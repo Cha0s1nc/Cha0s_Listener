@@ -273,17 +273,79 @@ app.post('/source', async (req, res) => {
   }
 });
 
-// Run script (Mac: runs shell scripts from a scripts/ folder)
+// Run script — fetches from URL and executes based on file extension and platform
 app.post('/run', async (req, res) => {
   const { script } = req.body;
   const { exec } = require('child_process');
-  const scriptPath = `./scripts/${script}.sh`;
-  addLog('system', '!run', `Running: ${scriptPath}`);
-  exec(`bash ${scriptPath}`, (err, stdout, stderr) => {
-    if (err) {
-      addLog('system', '!run', err.message, false);
-      return res.status(500).json({ error: err.message });
+  const os = require('os');
+  const platform = os.platform(); // 'darwin', 'win32', 'linux'
+
+  // Must be a URL
+  if (!script.startsWith('http://') && !script.startsWith('https://')) {
+    addLog('system', '!run', `Invalid script URL: ${script}`, false);
+    return res.status(400).json({ error: 'Script must be a URL' });
+  }
+
+  // Fetch script content
+  let scriptContent;
+  try {
+    const fetchRes = await fetch(script);
+    if (!fetchRes.ok) throw new Error(`HTTP ${fetchRes.status}`);
+    scriptContent = await fetchRes.text();
+  } catch (err) {
+    addLog('system', '!run', `Could not fetch script: ${err.message}`, false);
+    return res.status(500).json({ error: 'Script failed!' });
+  }
+
+  // Determine script type from URL extension
+  const ext = script.split('?')[0].split('.').pop().toLowerCase();
+
+  // Check platform compatibility
+  const isWindows = platform === 'win32';
+  const isMac = platform === 'darwin';
+  const isLinux = platform === 'linux';
+
+  let command;
+  const tmpFile = require('path').join(require('os').tmpdir(), `cha0s_script_${Date.now()}.${ext}`);
+  require('fs').writeFileSync(tmpFile, scriptContent);
+
+  if (ext === 'sh' && (isMac || isLinux)) {
+    command = `bash "${tmpFile}"`;
+  } else if (ext === 'sh' && isWindows) {
+    // Try bash via Git Bash or WSL
+    const hasBash = await new Promise(resolve => exec('bash --version', err => resolve(!err)));
+    if (!hasBash) {
+      require('fs').unlinkSync(tmpFile);
+      addLog('system', '!run', `Script failed! .sh not supported on Windows without bash`, false);
+      return res.status(500).json({ error: 'Script failed!' });
     }
+    command = `bash "${tmpFile}"`;
+  } else if (ext === 'ps1' && isWindows) {
+    command = `powershell -ExecutionPolicy Bypass -File "${tmpFile}"`;
+  } else if (ext === 'ps1' && !isWindows) {
+    require('fs').unlinkSync(tmpFile);
+    addLog('system', '!run', `Script failed! .ps1 not supported on ${platform}`, false);
+    return res.status(500).json({ error: 'Script failed!' });
+  } else if (ext === 'bat' && isWindows) {
+    command = `cmd /c "${tmpFile}"`;
+  } else if (ext === 'bat' && !isWindows) {
+    require('fs').unlinkSync(tmpFile);
+    addLog('system', '!run', `Script failed! .bat not supported on ${platform}`, false);
+    return res.status(500).json({ error: 'Script failed!' });
+  } else {
+    require('fs').unlinkSync(tmpFile);
+    addLog('system', '!run', `Script failed! Unknown extension: .${ext}`, false);
+    return res.status(400).json({ error: 'Script failed!' });
+  }
+
+  addLog('system', '!run', `Running ${ext.toUpperCase()} script from URL`);
+  exec(command, (err, stdout, stderr) => {
+    try { require('fs').unlinkSync(tmpFile); } catch {}
+    if (err) {
+      addLog('system', '!run', `Script failed! ${err.message}`, false);
+      return res.status(500).json({ error: 'Script failed!' });
+    }
+    addLog('system', '!run', `Script completed successfully`);
     res.json({ ok: true, output: stdout });
   });
 });
