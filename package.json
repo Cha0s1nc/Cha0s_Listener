@@ -1,6 +1,6 @@
 {
   "name": "cha0s-listener",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Cha0s Bot Listener — OBS & Jellyfin bridge with dashboard",
   "main": "electron/main.js",
   "bin": "electron/main.js",
