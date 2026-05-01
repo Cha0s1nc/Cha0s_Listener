@@ -270,6 +270,16 @@
               </div>
             </div>
             <div class="settings-group">
+              <div class="settings-group-title">Script Allowlist</div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Allowed Domains</div>
+                  <div class="setting-desc">Comma-separated list of trusted domains for !run. Leave blank to allow any.</div>
+                </div>
+                <input class="setting-input" id="cfg-script-allowlist" type="text" placeholder="pub-xxx.r2.dev, pastebin.com" style="width:280px" />
+              </div>
+            </div>
+            <div class="settings-group">
               <div class="settings-group-title">Listener</div>
               <div class="setting-row">
                 <div class="setting-label">
@@ -397,6 +407,7 @@
       'cfg-twitch-username': 'TWITCH_USERNAME',
       'cfg-twitch-oauth': 'TWITCH_OAUTH',
       'cfg-twitch-channel': 'TWITCH_CHANNEL',
+      'cfg-script-allowlist': 'SCRIPT_ALLOWLIST',
       'cfg-listener-port': 'LISTENER_PORT'
     };
 

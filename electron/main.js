@@ -15,6 +15,7 @@ const store = new Store({
     TWITCH_USERNAME: { type: 'string', default: '' },
     TWITCH_OAUTH: { type: 'string', default: '' },
     TWITCH_CHANNEL: { type: 'string', default: '' },
+    SCRIPT_ALLOWLIST: { type: 'string', default: '' },
   }
 });
 
@@ -33,6 +34,7 @@ function getConfig() {
     TWITCH_USERNAME: store.get('TWITCH_USERNAME'),
     TWITCH_OAUTH: store.get('TWITCH_OAUTH'),
     TWITCH_CHANNEL: store.get('TWITCH_CHANNEL'),
+    SCRIPT_ALLOWLIST: store.get('SCRIPT_ALLOWLIST'),
   };
 }
 

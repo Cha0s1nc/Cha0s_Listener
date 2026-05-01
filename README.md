@@ -69,17 +69,9 @@ Saving settings automatically restarts the listener with the new config. OBS and
 
 ## Sounds
 
-Place audio files in a `sounds/` folder next to the app executable. Supported formats: `mp3`, `wav`, `ogg`, `flac`.
+Files can be hosted via online services like Cloudflare R2 storage
 
-```
-sounds/
-├── airhorn.mp3
-├── sub.mp3
-├── raid.mp3
-└── mysfx.wav
-```
-
-Sounds can be triggered from the bot using `!sound <name>` or via keyword triggers. You can also use a direct URL instead of a filename.
+Sounds can be triggered from the bot using `!sound <name>` or via keyword triggers.
 
 **Examples:**
 ```

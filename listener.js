@@ -273,17 +273,74 @@ app.post('/source', async (req, res) => {
   }
 });
 
+// OBS recording control
+app.post('/recording', async (req, res) => {
+  const { action } = req.body;
+  if (!state.obs.connected) {
+    addLog('obs', `!record`, 'OBS not connected', false);
+    return res.status(503).json({ error: 'OBS not connected' });
+  }
+  try {
+    if (action === 'start') {
+      await obs.call('StartRecord');
+      addLog('obs', '!record', 'Recording started');
+    } else if (action === 'stop') {
+      await obs.call('StopRecord');
+      addLog('obs', '!record', 'Recording stopped');
+    } else {
+      return res.status(400).json({ error: `Unknown action: ${action}` });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    addLog('obs', '!record', err.message, false);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Killswitch — stops stream and recording
+app.post('/killswitch', async (req, res) => {
+  if (!state.obs.connected) {
+    addLog('obs', '!killswitch', 'OBS not connected', false);
+    return res.status(503).json({ error: 'OBS not connected' });
+  }
+  try {
+    await obs.call('StopStream');
+    addLog('obs', '!killswitch', 'Stream stopped');
+    try {
+      await obs.call('StopRecord');
+      addLog('obs', '!killswitch', 'Recording stopped');
+    } catch {
+      // Recording may not have been active, that's fine
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    addLog('obs', '!killswitch', err.message, false);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Run script — fetches from URL and executes based on file extension and platform
 app.post('/run', async (req, res) => {
   const { script } = req.body;
   const { exec } = require('child_process');
   const os = require('os');
-  const platform = os.platform(); // 'darwin', 'win32', 'linux'
+  const platform = os.platform();
 
   // Must be a URL
   if (!script.startsWith('http://') && !script.startsWith('https://')) {
     addLog('system', '!run', `Invalid script URL: ${script}`, false);
     return res.status(400).json({ error: 'Script must be a URL' });
+  }
+
+  // Check allowlist
+  const allowlist = (process.env.SCRIPT_ALLOWLIST || '').split(',').map(d => d.trim()).filter(Boolean);
+  if (allowlist.length > 0) {
+    const scriptHost = new URL(script).hostname;
+    const allowed = allowlist.some(domain => scriptHost === domain || scriptHost.endsWith(`.${domain}`));
+    if (!allowed) {
+      addLog('system', '!run', `Blocked — domain not in allowlist: ${scriptHost}`, false);
+      return res.status(403).json({ error: 'Script failed!' });
+    }
   }
 
   // Fetch script content
@@ -374,7 +431,7 @@ app.get('/api/state', (req, res) => {
 
 // Settings — update running config from dashboard
 app.post('/settings', (req, res) => {
-  const allowed = ['JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_DEVICE_ID', 'OBS_HOST', 'OBS_PORT', 'OBS_PASSWORD', 'LISTENER_PORT'];
+  const allowed = ['JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_DEVICE_ID', 'OBS_HOST', 'OBS_PORT', 'OBS_PASSWORD', 'LISTENER_PORT', 'SCRIPT_ALLOWLIST'];
   const updated = [];
   for (const [key, value] of Object.entries(req.body)) {
     if (allowed.includes(key)) {
