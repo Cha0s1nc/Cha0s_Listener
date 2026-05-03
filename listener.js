@@ -9,7 +9,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static(require('path').join(__dirname, 'public')));
 
-// Serve sounds folder from next to the executable (or project root in dev)
+// Serve sounds folder from next to the executable / AppData folder (or project root in dev)
 const SOUNDS_DIR = process.env.SOUNDS_DIR ||
   (require('path').join(process.pkg ? require('path').dirname(process.execPath) : __dirname, 'sounds'));
 app.use('/sounds', express.static(SOUNDS_DIR));
@@ -116,6 +116,10 @@ async function jellyfinRequest(path, method = 'GET', body = null) {
 
 async function getActiveSession() {
   const sessions = await jellyfinRequest('/Sessions');
+  const deviceId = process.env.JELLYFIN_DEVICE_ID;
+  if (deviceId) {
+    return sessions?.find(s => s.NowPlayingItem && s.DeviceId === deviceId) || null;
+  }
   return sessions?.find(s => s.NowPlayingItem) || null;
 }
 

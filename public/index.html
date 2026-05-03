@@ -24,13 +24,18 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; min-height: 100vh; -webkit-font-smoothing: antialiased; }
-    .app { display: grid; grid-template-rows: 48px 1fr; height: 100vh; overflow: hidden; }
+    .app { display: grid; grid-template-rows: 48px auto 1fr; height: 100vh; overflow: hidden; }
     header { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); -webkit-app-region: drag; user-select: none; }
     .titlebar-left { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
     .app-icon { width: 20px; height: 20px; background: var(--accent); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: white; font-weight: 700; }
     .app-title { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
     .titlebar-right { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
     .ws-pill { display: flex; align-items: center; gap: 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px 3px 7px; font-size: 11px; color: var(--text2); }
+    .update-banner { display: none; align-items: center; justify-content: space-between; padding: 8px 16px; background: rgba(110,79,246,0.15); border-bottom: 1px solid rgba(110,79,246,0.3); font-size: 12px; color: var(--text); }
+    .update-banner.visible { display: flex; }
+    .update-banner-text { display: flex; align-items: center; gap: 8px; }
+    .update-banner-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .update-install-btn { font-family: var(--font); font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 5px; border: none; background: var(--accent); color: white; cursor: pointer; }
     .ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); transition: background 0.3s, box-shadow 0.3s; }
     .ws-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
     .tab-bar { display: flex; gap: 2px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
@@ -125,6 +130,13 @@
         </div>
       </div>
     </header>
+    <div id="update-banner" class="update-banner">
+      <div class="update-banner-text">
+        <div class="update-banner-dot"></div>
+        <span id="update-banner-msg">A new version is available — downloading...</span>
+      </div>
+      <button class="update-install-btn" id="update-install-btn" style="display:none">Restart & Install</button>
+    </div>
     <div class="content">
       <aside class="sidebar">
         <div class="sidebar-section">
@@ -291,6 +303,7 @@
             </div>
             <div class="settings-actions">
               <span class="save-status" id="save-status">✓ Saved</span>
+              <button class="btn btn-secondary" id="btn-check-updates" style="margin-right:auto">Check for Updates</button>
               <button class="btn btn-secondary" id="btn-reset">Reset</button>
               <button class="btn btn-primary" id="btn-save">Save Settings</button>
             </div>
@@ -457,6 +470,39 @@
 
     document.querySelectorAll('.eye-btn').forEach(btn => {
       btn.addEventListener('click', () => { const input = document.getElementById(btn.dataset.target); input.type = input.type === 'password' ? 'text' : 'password'; });
+    });
+
+    // --- Auto updater ---
+    if (window.electronAPI?.onUpdateStatus) {
+      window.electronAPI.onUpdateStatus((data) => {
+        const banner = document.getElementById('update-banner');
+        const msg = document.getElementById('update-banner-msg');
+        const installBtn = document.getElementById('update-install-btn');
+        banner.classList.add('visible');
+        if (data.status === 'available') {
+          msg.textContent = `v${data.version} is available — downloading...`;
+          installBtn.style.display = 'none';
+        } else if (data.status === 'downloading') {
+          msg.textContent = `Downloading update... ${data.percent}%`;
+          installBtn.style.display = 'none';
+        } else if (data.status === 'downloaded') {
+          msg.textContent = `v${data.version} is ready to install`;
+          installBtn.style.display = 'block';
+        }
+      });
+    }
+
+    document.getElementById('update-install-btn')?.addEventListener('click', () => {
+      // Trigger restart via IPC — handled by dialog in main.js
+    });
+
+    document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
+      if (window.electronAPI) {
+        await window.electronAPI.checkForUpdates();
+        const btn = document.getElementById('btn-check-updates');
+        btn.textContent = 'Checking...';
+        setTimeout(() => btn.textContent = 'Check for Updates', 3000);
+      }
     });
 
     connect();

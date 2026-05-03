@@ -1,7 +1,12 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
 const Store = require('electron-store');
+const { autoUpdater } = require('electron-updater');
+
+// Configure auto-updater
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
 
 const store = new Store({
   schema: {
@@ -84,6 +89,65 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+// --- Auto updater events ---
+autoUpdater.on('update-available', (info) => {
+  console.log(`Update available: v${info.version}`);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      status: 'available',
+      version: info.version
+    });
+  }
+});
+
+autoUpdater.on('update-not-available', () => {
+  console.log('App is up to date');
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  const percent = Math.round(progress.percent);
+  console.log(`Downloading update: ${percent}%`);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      status: 'downloading',
+      percent
+    });
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log(`Update downloaded: v${info.version}`);
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      status: 'downloaded',
+      version: info.version
+    });
+  }
+  // Show dialog asking to restart
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'Update Ready',
+    message: `Cha0s Listener v${info.version} is ready to install.`,
+    detail: 'The update will be installed when you quit the app, or you can restart now.',
+    buttons: ['Restart Now', 'Later'],
+    defaultId: 0
+  }).then(({ response }) => {
+    if (response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+});
+
+autoUpdater.on('error', (err) => {
+  console.error('Auto-updater error:', err.message);
+});
+
+// IPC for manual update check from renderer
+ipcMain.handle('check-for-updates', () => {
+  if (app.isPackaged) autoUpdater.checkForUpdates();
+  return { ok: true };
+});
+
 ipcMain.handle('get-settings', () => getConfig());
 
 ipcMain.handle('save-settings', (event, settings) => {
@@ -97,6 +161,11 @@ ipcMain.handle('save-settings', (event, settings) => {
 app.whenReady().then(() => {
   startListener(getConfig());
   createWindow();
+
+  // Check for updates after window loads (only in packaged app)
+  if (app.isPackaged) {
+    setTimeout(() => autoUpdater.checkForUpdates(), 5000);
+  }
 });
 
 app.on('window-all-closed', () => {
