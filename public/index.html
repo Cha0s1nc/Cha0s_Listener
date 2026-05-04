@@ -452,8 +452,8 @@
     document.getElementById('btn-save').addEventListener('click', async () => {
       const settings = {};
       Object.entries(fields).forEach(([id, key]) => {
-        const val = document.getElementById(id)?.value?.trim();
-        if (val) settings[key] = val;
+      const el = document.getElementById(id);
+       if (el) settings[key] = el.value.trim();
       });
       if (isElectron) {
         await window.electronAPI.saveSettings(settings);
