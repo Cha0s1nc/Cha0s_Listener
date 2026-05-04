@@ -212,7 +212,7 @@
               <div class="setting-row">
                 <div class="setting-label">
                   <div class="setting-name">API Key</div>
-                  <div class="setting-desc">Dashboard → API Keys</div>
+                  <div class="setting-desc">Dashboard → API Keys — used if password is not set</div>
                 </div>
                 <div class="input-wrap">
                   <input class="setting-input" id="cfg-jellyfin-key" type="password" placeholder="••••••••" />
@@ -221,10 +221,20 @@
               </div>
               <div class="setting-row">
                 <div class="setting-label">
+                  <div class="setting-name">Password</div>
+                  <div class="setting-desc">Your Jellyfin password — used instead of API key if set</div>
+                </div>
+                <div class="input-wrap">
+                  <input class="setting-input" id="cfg-jellyfin-password" type="password" placeholder="••••••••" />
+                  <button class="eye-btn" data-target="cfg-jellyfin-password">👁</button>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
                   <div class="setting-name">Username</div>
                   <div class="setting-desc">Your Jellyfin username — filters sessions to your account only</div>
                 </div>
-                <input class="setting-input" id="cfg-jellyfin-username" type="text" />
+                <input class="setting-input" id="cfg-jellyfin-username" type="text" placeholder="Username" />
               </div>
               <div class="setting-row">
                 <div class="setting-label">
@@ -421,6 +431,7 @@
       'cfg-jellyfin-url': 'JELLYFIN_URL',
       'cfg-jellyfin-key': 'JELLYFIN_API_KEY',
       'cfg-jellyfin-username': 'JELLYFIN_USERNAME',
+      'cfg-jellyfin-password': 'JELLYFIN_PASSWORD',
       'cfg-jellyfin-device': 'JELLYFIN_DEVICE_ID',
       'cfg-obs-host': 'OBS_HOST',
       'cfg-obs-port': 'OBS_PORT',
@@ -452,8 +463,8 @@
     document.getElementById('btn-save').addEventListener('click', async () => {
       const settings = {};
       Object.entries(fields).forEach(([id, key]) => {
-      const el = document.getElementById(id);
-       if (el) settings[key] = el.value.trim();
+        const val = document.getElementById(id)?.value?.trim();
+        if (val) settings[key] = val;
       });
       if (isElectron) {
         await window.electronAPI.saveSettings(settings);

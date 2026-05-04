@@ -98,17 +98,66 @@ obs.on('ConnectionClosed', () => {
 connectOBS();
 
 // --- Jellyfin helpers ---
+let jellyfinToken = null;
+
+async function authenticateJellyfin() {
+  const username = process.env.JELLYFIN_USERNAME;
+  const password = process.env.JELLYFIN_PASSWORD;
+  const apiKey = process.env.JELLYFIN_API_KEY;
+
+  if (username && password) {
+    try {
+      const res = await fetch(`${JELLYFIN_URL}/Users/AuthenticateByName`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Emby-Authorization': 'MediaBrowser Client="Cha0s Listener", Device="Cha0s", DeviceId="cha0s_listener", Version="1.0"'
+        },
+        body: JSON.stringify({ Username: username, Pw: password })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        jellyfinToken = data.AccessToken;
+        console.log('Jellyfin authenticated via username/password');
+        return;
+      }
+      console.log('Jellyfin username/password auth failed, falling back to API key');
+    } catch (err) {
+      console.log(`Jellyfin auth error: ${err.message}, falling back to API key`);
+    }
+  }
+
+  // Fall back to API key
+  if (apiKey) {
+    jellyfinToken = apiKey;
+    console.log('Jellyfin using API key');
+  } else {
+    console.log('No Jellyfin credentials configured');
+  }
+}
+
 async function jellyfinRequest(path, method = 'GET', body = null) {
+  if (!jellyfinToken) await authenticateJellyfin();
   const url = `${JELLYFIN_URL}${path}`;
   const opts = {
     method,
     headers: {
-      'X-Emby-Token': JELLYFIN_API_KEY,
+      'X-Emby-Token': jellyfinToken,
       'Content-Type': 'application/json'
     }
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
+  // If token expired, re-authenticate and retry once
+  if (res.status === 401) {
+    jellyfinToken = null;
+    await authenticateJellyfin();
+    opts.headers['X-Emby-Token'] = jellyfinToken;
+    const retry = await fetch(url, opts);
+    if (!retry.ok) throw new Error(`Jellyfin HTTP ${retry.status}`);
+    const retryText = await retry.text();
+    return retryText ? JSON.parse(retryText) : null;
+  }
   if (!res.ok) throw new Error(`Jellyfin HTTP ${res.status}`);
   const text = await res.text();
   return text ? JSON.parse(text) : null;
@@ -439,7 +488,7 @@ app.get('/api/state', (req, res) => {
 
 // Settings — update running config from dashboard
 app.post('/settings', (req, res) => {
-  const allowed = ['JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_USERNAME', 'JELLYFIN_DEVICE_ID', 'OBS_HOST', 'OBS_PORT', 'OBS_PASSWORD', 'LISTENER_PORT', 'SCRIPT_ALLOWLIST'];
+  const allowed = ['JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_USERNAME', 'JELLYFIN_PASSWORD', 'JELLYFIN_DEVICE_ID', 'OBS_HOST', 'OBS_PORT', 'OBS_PASSWORD', 'LISTENER_PORT', 'SCRIPT_ALLOWLIST'];
   const updated = [];
   for (const [key, value] of Object.entries(req.body)) {
     if (allowed.includes(key)) {
@@ -458,6 +507,7 @@ app.post('/settings', (req, res) => {
   // Recheck Jellyfin if its settings changed
   if (updated.some(k => k.startsWith('JELLYFIN_'))) {
     state.jellyfin.connected = false;
+    jellyfinToken = null;
     checkJellyfinConnection();
   }
   res.json({ ok: true, updated });
