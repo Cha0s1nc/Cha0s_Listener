@@ -221,6 +221,13 @@
               </div>
               <div class="setting-row">
                 <div class="setting-label">
+                  <div class="setting-name">Username</div>
+                  <div class="setting-desc">Your Jellyfin username — filters sessions to your account only</div>
+                </div>
+                <input class="setting-input" id="cfg-jellyfin-username" type="text" placeholder="chaosinc" />
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
                   <div class="setting-name">Device ID</div>
                   <div class="setting-desc">Dashboard → Devices — leave blank for auto</div>
                 </div>
@@ -413,6 +420,7 @@
     const fields = {
       'cfg-jellyfin-url': 'JELLYFIN_URL',
       'cfg-jellyfin-key': 'JELLYFIN_API_KEY',
+      'cfg-jellyfin-username': 'JELLYFIN_USERNAME',
       'cfg-jellyfin-device': 'JELLYFIN_DEVICE_ID',
       'cfg-obs-host': 'OBS_HOST',
       'cfg-obs-port': 'OBS_PORT',

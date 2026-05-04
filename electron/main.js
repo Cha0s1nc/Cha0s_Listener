@@ -12,6 +12,7 @@ const store = new Store({
   schema: {
     JELLYFIN_URL: { type: 'string', default: '' },
     JELLYFIN_API_KEY: { type: 'string', default: '' },
+    JELLYFIN_USERNAME: { type: 'string', default: '' },
     JELLYFIN_DEVICE_ID: { type: 'string', default: '' },
     OBS_HOST: { type: 'string', default: 'localhost' },
     OBS_PORT: { type: 'string', default: '4455' },
@@ -31,6 +32,7 @@ function getConfig() {
   return {
     JELLYFIN_URL: store.get('JELLYFIN_URL'),
     JELLYFIN_API_KEY: store.get('JELLYFIN_API_KEY'),
+    JELLYFIN_USERNAME: store.get('JELLYFIN_USERNAME'),
     JELLYFIN_DEVICE_ID: store.get('JELLYFIN_DEVICE_ID'),
     OBS_HOST: store.get('OBS_HOST'),
     OBS_PORT: store.get('OBS_PORT'),

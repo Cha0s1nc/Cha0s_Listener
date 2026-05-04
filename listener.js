@@ -9,7 +9,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static(require('path').join(__dirname, 'public')));
 
-// Serve sounds folder from next to the executable / AppData folder (or project root in dev)
+// Serve sounds folder from next to the executable (or project root in dev)
 const SOUNDS_DIR = process.env.SOUNDS_DIR ||
   (require('path').join(process.pkg ? require('path').dirname(process.execPath) : __dirname, 'sounds'));
 app.use('/sounds', express.static(SOUNDS_DIR));
@@ -117,10 +117,14 @@ async function jellyfinRequest(path, method = 'GET', body = null) {
 async function getActiveSession() {
   const sessions = await jellyfinRequest('/Sessions');
   const deviceId = process.env.JELLYFIN_DEVICE_ID;
-  if (deviceId) {
-    return sessions?.find(s => s.NowPlayingItem && s.DeviceId === deviceId) || null;
-  }
-  return sessions?.find(s => s.NowPlayingItem) || null;
+  const username = process.env.JELLYFIN_USERNAME;
+
+  return sessions?.find(s => {
+    if (!s.NowPlayingItem) return false;
+    if (username && s.UserName?.toLowerCase() !== username.toLowerCase()) return false;
+    if (deviceId && s.DeviceId !== deviceId) return false;
+    return true;
+  }) || null;
 }
 
 async function checkJellyfinConnection() {
@@ -435,7 +439,7 @@ app.get('/api/state', (req, res) => {
 
 // Settings — update running config from dashboard
 app.post('/settings', (req, res) => {
-  const allowed = ['JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_DEVICE_ID', 'OBS_HOST', 'OBS_PORT', 'OBS_PASSWORD', 'LISTENER_PORT', 'SCRIPT_ALLOWLIST'];
+  const allowed = ['JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_USERNAME', 'JELLYFIN_DEVICE_ID', 'OBS_HOST', 'OBS_PORT', 'OBS_PASSWORD', 'LISTENER_PORT', 'SCRIPT_ALLOWLIST'];
   const updated = [];
   for (const [key, value] of Object.entries(req.body)) {
     if (allowed.includes(key)) {
