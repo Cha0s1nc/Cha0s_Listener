@@ -27,6 +27,7 @@
       "repo": "cha0s_listener"
     },
     "mac": {
+      "identity":"Cha0s_1nc_Development",
       "target": "dmg",
       "icon": "assets/icon.icns",
       "category": "public.app-category.utilities"

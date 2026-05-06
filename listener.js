@@ -29,8 +29,22 @@ const state = {
   obs: { connected: false, reconnecting: false },
   jellyfin: { connected: false, lastChecked: null },
   bot: { connected: false, lastSeen: null },
-  log: []
+  twitch: { connected: false },
+  log: [],
+  // Song request queue: [{ id, user, query, resolvedItem, status: 'pending'|'approved'|'skipped' }]
+  queue: [],
+  // Download wishlist: [{ id, user, query, addedAt }]
+  wishlist: [],
+  // Redeem actions map: { [redeemTitle]: { type: 'script'|'sound'|'scene'|'source', ...params } }
+  redeemActions: {}
 };
+
+// Load redeem actions from env on startup
+try {
+  if (process.env.REDEEM_ACTIONS) {
+    state.redeemActions = JSON.parse(process.env.REDEEM_ACTIONS);
+  }
+} catch { console.log('Could not parse REDEEM_ACTIONS'); }
 
 // Bot timeout — mark as disconnected if no ping for 45s
 setInterval(() => {
@@ -99,6 +113,7 @@ connectOBS();
 
 // --- Jellyfin helpers ---
 let jellyfinToken = null;
+let jellyfinUserId = null;
 
 async function authenticateJellyfin() {
   const username = process.env.JELLYFIN_USERNAME;
@@ -118,6 +133,7 @@ async function authenticateJellyfin() {
       if (res.ok) {
         const data = await res.json();
         jellyfinToken = data.AccessToken;
+        jellyfinUserId = data.User?.Id || null;
         console.log('Jellyfin authenticated via username/password');
         return;
       }
@@ -127,9 +143,18 @@ async function authenticateJellyfin() {
     }
   }
 
-  // Fall back to API key
   if (apiKey) {
     jellyfinToken = apiKey;
+    // Fetch user ID from API key
+    try {
+      const res = await fetch(`${JELLYFIN_URL}/Users/Me`, {
+        headers: { 'X-Emby-Token': apiKey }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        jellyfinUserId = data.Id || null;
+      }
+    } catch {}
     console.log('Jellyfin using API key');
   } else {
     console.log('No Jellyfin credentials configured');
@@ -148,7 +173,6 @@ async function jellyfinRequest(path, method = 'GET', body = null) {
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
-  // If token expired, re-authenticate and retry once
   if (res.status === 401) {
     jellyfinToken = null;
     await authenticateJellyfin();
@@ -197,11 +221,336 @@ async function checkJellyfinConnection() {
 checkJellyfinConnection();
 setInterval(checkJellyfinConnection, 30000);
 
+// --- OS Media Keys (fallback mode) ---
+// Uses child_process to send media key events cross-platform
+function sendOSMediaKey(action) {
+  const { exec } = require('child_process');
+  const os = require('os');
+  const platform = os.platform();
+
+  const commands = {
+    playpause: {
+      darwin: `osascript -e 'tell application "System Events" to key code 100'`,
+      win32: `powershell -Command "(New-Object -ComObject WScript.Shell).SendKeys([char]179)"`,
+      linux: `xdotool key XF86AudioPlay`
+    },
+    next: {
+      darwin: `osascript -e 'tell application "System Events" to key code 101'`,
+      win32: `powershell -Command "(New-Object -ComObject WScript.Shell).SendKeys([char]176)"`,
+      linux: `xdotool key XF86AudioNext`
+    },
+    prev: {
+      darwin: `osascript -e 'tell application "System Events" to key code 98'`,
+      win32: `powershell -Command "(New-Object -ComObject WScript.Shell).SendKeys([char]177)"`,
+      linux: `xdotool key XF86AudioPrev`
+    }
+  };
+
+  const cmd = commands[action]?.[platform];
+  if (!cmd) throw new Error(`OS media key not supported for ${action} on ${platform}`);
+  return new Promise((resolve, reject) => {
+    exec(cmd, (err) => err ? reject(err) : resolve());
+  });
+}
+
+// --- Twitch EventSub WebSocket ---
+let twitchWs = null;
+let twitchReconnectTimer = null;
+let twitchSessionId = null;
+
+async function getTwitchUserId(channelName, token) {
+  // Strip 'oauth:' prefix if present
+  const bearerToken = token.replace(/^oauth:/i, '');
+  const res = await fetch(`https://api.twitch.tv/helix/users?login=${channelName}`, {
+    headers: {
+      'Authorization': `Bearer ${bearerToken}`,
+      'Client-Id': process.env.TWITCH_CLIENT_ID || ''
+    }
+  });
+  if (!res.ok) throw new Error(`Twitch user lookup failed: ${res.status}`);
+  const data = await res.json();
+  return data.data?.[0]?.id || null;
+}
+
+async function subscribeToRedeems(sessionId) {
+  const channel = process.env.TWITCH_CHANNEL;
+  const token = (process.env.TWITCH_OAUTH || '').replace(/^oauth:/i, '');
+  const clientId = process.env.TWITCH_CLIENT_ID || '';
+  if (!channel || !token || !clientId) {
+    console.log('Twitch EventSub: missing TWITCH_CHANNEL, TWITCH_OAUTH, or TWITCH_CLIENT_ID — skipping redeem subscription');
+    return;
+  }
+  try {
+    const broadcasterId = await getTwitchUserId(channel, token);
+    if (!broadcasterId) throw new Error('Could not resolve broadcaster ID');
+
+    const res = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Client-Id': clientId,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        type: 'channel.channel_points_custom_reward_redemption.add',
+        version: '1',
+        condition: { broadcaster_user_id: broadcasterId },
+        transport: { method: 'websocket', session_id: sessionId }
+      })
+    });
+    if (res.ok) {
+      addLog('system', 'twitch', 'Subscribed to channel point redeems');
+    } else {
+      const err = await res.json();
+      addLog('system', 'twitch', `Redeem subscription failed: ${err.message || res.status}`, false);
+    }
+  } catch (err) {
+    addLog('system', 'twitch', `Redeem subscription error: ${err.message}`, false);
+  }
+}
+
+async function subscribeToChatCommands(sessionId) {
+  // Subscribe to chat messages for !sr song request command
+  const channel = process.env.TWITCH_CHANNEL;
+  const token = (process.env.TWITCH_OAUTH || '').replace(/^oauth:/i, '');
+  const clientId = process.env.TWITCH_CLIENT_ID || '';
+  if (!channel || !token || !clientId) return;
+
+  try {
+    const broadcasterId = await getTwitchUserId(channel, token);
+    if (!broadcasterId) return;
+    const userId = await getTwitchUserId(process.env.TWITCH_USERNAME || channel, token);
+
+    await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Client-Id': clientId,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        type: 'channel.chat.message',
+        version: '1',
+        condition: { broadcaster_user_id: broadcasterId, user_id: userId || broadcasterId },
+        transport: { method: 'websocket', session_id: sessionId }
+      })
+    });
+  } catch (err) {
+    console.log('Chat subscription error:', err.message);
+  }
+}
+
+function connectTwitchEventSub() {
+  if (twitchReconnectTimer) { clearTimeout(twitchReconnectTimer); twitchReconnectTimer = null; }
+  const token = process.env.TWITCH_OAUTH;
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  if (!token || !clientId) {
+    console.log('Twitch EventSub: TWITCH_OAUTH or TWITCH_CLIENT_ID not set, skipping');
+    return;
+  }
+
+  twitchWs = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
+
+  twitchWs.on('open', () => {
+    console.log('Twitch EventSub WebSocket open');
+  });
+
+  twitchWs.on('message', async (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw); } catch { return; }
+
+    const type = msg.metadata?.message_type;
+
+    if (type === 'session_welcome') {
+      twitchSessionId = msg.payload?.session?.id;
+      state.twitch.connected = true;
+      broadcast({ event: 'status', service: 'twitch', connected: true });
+      addLog('system', 'twitch', 'EventSub connected');
+
+      // Subscribe based on mode
+      const srMode = process.env.SONG_REQUEST_MODE || 'chat';
+      if (srMode === 'channel_points') {
+        await subscribeToRedeems(twitchSessionId);
+      }
+      // Always subscribe to chat for !sr command (when not channel-points-only)
+      await subscribeToChatCommands(twitchSessionId);
+      // Also subscribe to redeems if redeem actions are configured
+      if (Object.keys(state.redeemActions).length > 0 && srMode !== 'channel_points') {
+        await subscribeToRedeems(twitchSessionId);
+      }
+    }
+
+    if (type === 'session_keepalive') return;
+
+    if (type === 'session_reconnect') {
+      const url = msg.payload?.session?.reconnect_url;
+      if (url) {
+        twitchWs.close();
+        twitchWs = new WebSocket(url);
+      }
+      return;
+    }
+
+    if (type === 'notification') {
+      const subType = msg.metadata?.subscription_type;
+      const event = msg.payload?.event;
+
+      // Channel point redeem
+      if (subType === 'channel.channel_points_custom_reward_redemption.add') {
+        const redeemTitle = event?.reward?.title;
+        const user = event?.user_name || 'unknown';
+        const input = event?.user_input || '';
+        addLog('system', `redeem`, `${user} redeemed: ${redeemTitle}${input ? ` — "${input}"` : ''}`);
+        await handleRedeem(redeemTitle, user, input);
+      }
+
+      // Chat message — check for !sr command
+      if (subType === 'channel.chat.message') {
+        const user = event?.chatter_user_name || 'unknown';
+        const text = event?.message?.text || '';
+        if (text.toLowerCase().startsWith('!sr ')) {
+          const query = text.slice(4).trim();
+          if (query) await handleSongRequest(user, query, 'chat');
+        }
+      }
+    }
+  });
+
+  twitchWs.on('close', () => {
+    state.twitch.connected = false;
+    broadcast({ event: 'status', service: 'twitch', connected: false });
+    addLog('system', 'twitch', 'EventSub disconnected — reconnecting in 15s', false);
+    twitchReconnectTimer = setTimeout(connectTwitchEventSub, 15000);
+  });
+
+  twitchWs.on('error', (err) => {
+    console.log('Twitch EventSub error:', err.message);
+  });
+}
+
+// Start Twitch EventSub if credentials are available
+if (process.env.TWITCH_OAUTH && process.env.TWITCH_CLIENT_ID) {
+  connectTwitchEventSub();
+}
+
+// --- Redeem action handler ---
+async function handleRedeem(redeemTitle, user, input) {
+  const action = state.redeemActions[redeemTitle];
+  if (!action) {
+    // Check if it's a song request redeem
+    const srMode = process.env.SONG_REQUEST_MODE || 'chat';
+    const srRedeemName = process.env.SONG_REQUEST_REDEEM_NAME || '';
+    if (srMode === 'channel_points' && srRedeemName && redeemTitle === srRedeemName) {
+      await handleSongRequest(user, input, 'redeem');
+    }
+    return;
+  }
+
+  try {
+    if (action.type === 'script') {
+      // Trigger existing /run logic
+      const res = await fetch(`http://localhost:${PORT}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script: action.script })
+      });
+      const data = await res.json();
+      if (!data.ok) addLog('system', `redeem:${redeemTitle}`, `Script failed`, false);
+    } else if (action.type === 'sound') {
+      broadcast({ event: 'play_sound', url: action.sound });
+      addLog('sound', `redeem:${redeemTitle}`, `Playing: ${action.sound}`);
+    } else if (action.type === 'scene') {
+      if (state.obs.connected) {
+        await obs.call('SetCurrentProgramScene', { sceneName: action.scene });
+        addLog('obs', `redeem:${redeemTitle}`, `Scene → ${action.scene}`);
+      }
+    } else if (action.type === 'source') {
+      if (state.obs.connected) {
+        const { scenes } = await obs.call('GetSceneList');
+        for (const scene of scenes) {
+          const { sceneItems } = await obs.call('GetSceneItemList', { sceneName: scene.sceneName });
+          const item = sceneItems.find(i => i.sourceName === action.source);
+          if (item) {
+            await obs.call('SetSceneItemEnabled', {
+              sceneName: scene.sceneName,
+              sceneItemId: item.sceneItemId,
+              sceneItemEnabled: action.visible !== false
+            });
+            addLog('obs', `redeem:${redeemTitle}`, `Source ${action.source} → ${action.visible !== false ? 'on' : 'off'}`);
+            break;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    addLog('system', `redeem:${redeemTitle}`, `Action failed: ${err.message}`, false);
+  }
+}
+
+// --- Song request handler ---
+async function handleSongRequest(user, query, source) {
+  if (!query) return;
+
+  addLog('jellyfin', `!sr`, `${user} requested: ${query}`);
+
+  // Try to find it in Jellyfin
+  let resolvedItem = null;
+  try {
+    if (jellyfinToken && JELLYFIN_URL) {
+      const uid = jellyfinUserId;
+      const searchPath = uid
+        ? `/Users/${uid}/Items?searchTerm=${encodeURIComponent(query)}&IncludeItemTypes=Audio&Recursive=true&Limit=1&Fields=Id,Name,Artists,Album`
+        : `/Items?searchTerm=${encodeURIComponent(query)}&IncludeItemTypes=Audio&Recursive=true&Limit=1&Fields=Id,Name,Artists,Album`;
+      const result = await jellyfinRequest(searchPath);
+      if (result?.Items?.length > 0) {
+        const item = result.Items[0];
+        resolvedItem = {
+          id: item.Id,
+          name: item.Name,
+          artist: item.Artists?.[0] || item.AlbumArtist || '',
+          album: item.Album || ''
+        };
+      }
+    }
+  } catch (err) {
+    console.log('Song search error:', err.message);
+  }
+
+  const entry = {
+    id: `req_${Date.now()}`,
+    user,
+    query,
+    source,
+    resolvedItem,
+    status: 'pending',
+    addedAt: new Date().toISOString()
+  };
+
+  if (!resolvedItem) {
+    // Add to wishlist instead of queue
+    const wishlistEntry = {
+      id: `wish_${Date.now()}`,
+      user,
+      query,
+      addedAt: new Date().toISOString()
+    };
+    state.wishlist.unshift(wishlistEntry);
+    if (state.wishlist.length > 200) state.wishlist.pop();
+    broadcast({ event: 'wishlist_add', entry: wishlistEntry });
+    addLog('jellyfin', `!sr`, `"${query}" not found — added to wishlist`, false);
+  } else {
+    state.queue.push(entry);
+    broadcast({ event: 'queue_add', entry });
+    addLog('jellyfin', `!sr`, `Queued: ${resolvedItem.artist} — ${resolvedItem.name}`);
+  }
+}
+
 // --- Routes ---
 
 // Song info
 app.post('/media', async (req, res) => {
   const { action } = req.body;
+  const mediaMode = process.env.MEDIA_CONTROL_MODE || 'jellyfin';
 
   if (action === 'song') {
     try {
@@ -222,7 +571,6 @@ app.post('/media', async (req, res) => {
     }
   }
 
-  // Playback controls
   const commandMap = {
     playpause: 'PlayPause',
     next: 'NextTrack',
@@ -232,6 +580,19 @@ app.post('/media', async (req, res) => {
   const command = commandMap[action];
   if (!command) return res.status(400).json({ error: `Unknown action: ${action}` });
 
+  // OS media key mode
+  if (mediaMode === 'os') {
+    try {
+      await sendOSMediaKey(action);
+      addLog('system', `!${action}`, `OS media key: ${action}`);
+      return res.json({ ok: true });
+    } catch (err) {
+      addLog('system', `!${action}`, err.message, false);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // Jellyfin mode (default)
   try {
     const session = await getActiveSession();
     if (!session) {
@@ -253,14 +614,12 @@ app.post('/sound', async (req, res) => {
   const fs = require('fs');
   const path = require('path');
 
-  // If it's a URL, play it directly
   if (sound.startsWith('http://') || sound.startsWith('https://')) {
     broadcast({ event: 'play_sound', url: sound });
     addLog('sound', '!sound', `Playing URL: ${sound}`);
     return res.json({ ok: true });
   }
 
-  // Otherwise look for a local file
   const extensions = ['mp3', 'wav', 'ogg', 'flac'];
   const found = extensions.find(ext =>
     fs.existsSync(path.join(SOUNDS_DIR, `${sound}.${ext}`))
@@ -302,7 +661,6 @@ app.post('/source', async (req, res) => {
     return res.status(503).json({ error: 'OBS not connected' });
   }
   try {
-    // Find which scene contains this source
     const { scenes } = await obs.call('GetSceneList');
     let found = false;
     for (const scene of scenes) {
@@ -366,9 +724,7 @@ app.post('/killswitch', async (req, res) => {
     try {
       await obs.call('StopRecord');
       addLog('obs', '!killswitch', 'Recording stopped');
-    } catch {
-      // Recording may not have been active, that's fine
-    }
+    } catch {}
     res.json({ ok: true });
   } catch (err) {
     addLog('obs', '!killswitch', err.message, false);
@@ -376,20 +732,18 @@ app.post('/killswitch', async (req, res) => {
   }
 });
 
-// Run script — fetches from URL and executes based on file extension and platform
+// Run script
 app.post('/run', async (req, res) => {
   const { script } = req.body;
   const { exec } = require('child_process');
   const os = require('os');
   const platform = os.platform();
 
-  // Must be a URL
   if (!script.startsWith('http://') && !script.startsWith('https://')) {
     addLog('system', '!run', `Invalid script URL: ${script}`, false);
     return res.status(400).json({ error: 'Script must be a URL' });
   }
 
-  // Check allowlist
   const allowlist = (process.env.SCRIPT_ALLOWLIST || '').split(',').map(d => d.trim()).filter(Boolean);
   if (allowlist.length > 0) {
     const scriptHost = new URL(script).hostname;
@@ -400,7 +754,6 @@ app.post('/run', async (req, res) => {
     }
   }
 
-  // Fetch script content
   let scriptContent;
   try {
     const fetchRes = await fetch(script);
@@ -411,10 +764,7 @@ app.post('/run', async (req, res) => {
     return res.status(500).json({ error: 'Script failed!' });
   }
 
-  // Determine script type from URL extension
   const ext = script.split('?')[0].split('.').pop().toLowerCase();
-
-  // Check platform compatibility
   const isWindows = platform === 'win32';
   const isMac = platform === 'darwin';
   const isLinux = platform === 'linux';
@@ -426,7 +776,6 @@ app.post('/run', async (req, res) => {
   if (ext === 'sh' && (isMac || isLinux)) {
     command = `bash "${tmpFile}"`;
   } else if (ext === 'sh' && isWindows) {
-    // Try bash via Git Bash or WSL
     const hasBash = await new Promise(resolve => exec('bash --version', err => resolve(!err)));
     if (!hasBash) {
       require('fs').unlinkSync(tmpFile);
@@ -476,19 +825,137 @@ app.post('/ping', (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Song request queue API ---
+
+// Get current queue and wishlist
+app.get('/api/queue', (req, res) => {
+  res.json({ queue: state.queue, wishlist: state.wishlist });
+});
+
+// Manual song request from dashboard (streamer search + add)
+app.post('/api/queue/add', async (req, res) => {
+  const { user, query, itemId, itemName, itemArtist, itemAlbum } = req.body;
+  const entry = {
+    id: `req_${Date.now()}`,
+    user: user || 'streamer',
+    query: query || itemName,
+    source: 'manual',
+    resolvedItem: itemId ? { id: itemId, name: itemName, artist: itemArtist, album: itemAlbum } : null,
+    status: 'pending',
+    addedAt: new Date().toISOString()
+  };
+  state.queue.push(entry);
+  broadcast({ event: 'queue_add', entry });
+  addLog('jellyfin', 'queue', `Manually queued: ${itemArtist} — ${itemName}`);
+  res.json({ ok: true, entry });
+});
+
+// Approve a queued request — plays it in Jellyfin
+app.post('/api/queue/:id/approve', async (req, res) => {
+  const entry = state.queue.find(e => e.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  if (!entry.resolvedItem) return res.status(400).json({ error: 'No resolved Jellyfin item' });
+
+  try {
+    const session = await getActiveSession();
+    if (!session) return res.status(404).json({ error: 'No active Jellyfin session' });
+
+    await jellyfinRequest(`/Sessions/${session.Id}/Playing`, 'POST', {
+      ItemIds: [entry.resolvedItem.id],
+      PlayCommand: 'PlayNext'
+    });
+
+    entry.status = 'approved';
+    broadcast({ event: 'queue_update', entry });
+    addLog('jellyfin', 'queue', `Approved: ${entry.resolvedItem.artist} — ${entry.resolvedItem.name}`);
+    res.json({ ok: true });
+  } catch (err) {
+    addLog('jellyfin', 'queue', `Approve failed: ${err.message}`, false);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Skip / remove a queued entry
+app.post('/api/queue/:id/skip', (req, res) => {
+  const idx = state.queue.findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  const [entry] = state.queue.splice(idx, 1);
+  entry.status = 'skipped';
+  broadcast({ event: 'queue_remove', id: entry.id });
+  addLog('jellyfin', 'queue', `Skipped: ${entry.query}`);
+  res.json({ ok: true });
+});
+
+// Remove from wishlist
+app.delete('/api/wishlist/:id', (req, res) => {
+  const idx = state.wishlist.findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  state.wishlist.splice(idx, 1);
+  broadcast({ event: 'wishlist_remove', id: req.params.id });
+  res.json({ ok: true });
+});
+
+// Jellyfin library search (for dashboard search box)
+app.get('/api/jellyfin/search', async (req, res) => {
+  const q = req.query.q || '';
+  if (!q) return res.json({ items: [] });
+  try {
+    if (!jellyfinToken) await authenticateJellyfin();
+    const uid = jellyfinUserId;
+    const path = uid
+      ? `/Users/${uid}/Items?searchTerm=${encodeURIComponent(q)}&IncludeItemTypes=Audio&Recursive=true&Limit=20&Fields=Id,Name,Artists,Album,RunTimeTicks`
+      : `/Items?searchTerm=${encodeURIComponent(q)}&IncludeItemTypes=Audio&Recursive=true&Limit=20&Fields=Id,Name,Artists,Album,RunTimeTicks`;
+    const result = await jellyfinRequest(path);
+    const items = (result?.Items || []).map(item => ({
+      id: item.Id,
+      name: item.Name,
+      artist: item.Artists?.[0] || item.AlbumArtist || '',
+      album: item.Album || '',
+      duration: item.RunTimeTicks ? Math.round(item.RunTimeTicks / 10000000) : null
+    }));
+    res.json({ items });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Redeem actions CRUD ---
+app.get('/api/redeems', (req, res) => {
+  res.json({ redeems: state.redeemActions });
+});
+
+app.post('/api/redeems', (req, res) => {
+  const { redeems } = req.body;
+  if (typeof redeems !== 'object') return res.status(400).json({ error: 'Invalid' });
+  state.redeemActions = redeems;
+  process.env.REDEEM_ACTIONS = JSON.stringify(redeems);
+  addLog('system', 'settings', 'Redeem actions updated');
+  res.json({ ok: true });
+});
+
 // Dashboard state endpoint
 app.get('/api/state', (req, res) => {
   res.json({
     obs: state.obs,
     jellyfin: state.jellyfin,
     bot: state.bot,
-    log: state.log
+    twitch: state.twitch,
+    log: state.log,
+    mediaMode: process.env.MEDIA_CONTROL_MODE || 'jellyfin',
+    srMode: process.env.SONG_REQUEST_MODE || 'chat',
+    srRedeemName: process.env.SONG_REQUEST_REDEEM_NAME || '',
+    srEnabled: process.env.SONG_REQUEST_ENABLED !== 'false'
   });
 });
 
 // Settings — update running config from dashboard
 app.post('/settings', (req, res) => {
-  const allowed = ['JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_USERNAME', 'JELLYFIN_PASSWORD', 'JELLYFIN_DEVICE_ID', 'OBS_HOST', 'OBS_PORT', 'OBS_PASSWORD', 'LISTENER_PORT', 'SCRIPT_ALLOWLIST'];
+  const allowed = [
+    'JELLYFIN_URL', 'JELLYFIN_API_KEY', 'JELLYFIN_USERNAME', 'JELLYFIN_PASSWORD',
+    'JELLYFIN_DEVICE_ID', 'OBS_HOST', 'OBS_PORT', 'OBS_PASSWORD',
+    'LISTENER_PORT', 'SCRIPT_ALLOWLIST', 'TWITCH_CLIENT_ID',
+    'MEDIA_CONTROL_MODE', 'SONG_REQUEST_MODE', 'SONG_REQUEST_REDEEM_NAME', 'SONG_REQUEST_ENABLED'
+  ];
   const updated = [];
   for (const [key, value] of Object.entries(req.body)) {
     if (allowed.includes(key)) {
@@ -497,18 +964,28 @@ app.post('/settings', (req, res) => {
     }
   }
   addLog('system', 'settings', `Updated: ${updated.join(', ')}`);
-  // Reconnect OBS if its settings changed
   if (updated.some(k => k.startsWith('OBS_'))) {
     state.obs.connected = false;
     state.obs.reconnecting = false;
     obs.disconnect().catch(() => {});
     setTimeout(connectOBS, 500);
   }
-  // Recheck Jellyfin if its settings changed
   if (updated.some(k => k.startsWith('JELLYFIN_'))) {
     state.jellyfin.connected = false;
     jellyfinToken = null;
+    jellyfinUserId = null;
     checkJellyfinConnection();
+  }
+  // Reconnect Twitch EventSub if credentials changed
+  if (updated.some(k => k.startsWith('TWITCH_'))) {
+    if (twitchWs) {
+      twitchWs.removeAllListeners();
+      twitchWs.close();
+      twitchWs = null;
+    }
+    if (process.env.TWITCH_OAUTH && process.env.TWITCH_CLIENT_ID) {
+      setTimeout(connectTwitchEventSub, 500);
+    }
   }
   res.json({ ok: true, updated });
 });
@@ -520,7 +997,14 @@ wss.on('connection', (ws) => {
     obs: state.obs,
     jellyfin: state.jellyfin,
     bot: state.bot,
-    log: state.log
+    twitch: state.twitch,
+    log: state.log,
+    mediaMode: process.env.MEDIA_CONTROL_MODE || 'jellyfin',
+    srMode: process.env.SONG_REQUEST_MODE || 'chat',
+    srRedeemName: process.env.SONG_REQUEST_REDEEM_NAME || '',
+    srEnabled: process.env.SONG_REQUEST_ENABLED !== 'false',
+    queue: state.queue,
+    wishlist: state.wishlist
   }));
 });
 

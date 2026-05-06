@@ -22,7 +22,18 @@ const store = new Store({
     TWITCH_USERNAME: { type: 'string', default: '' },
     TWITCH_OAUTH: { type: 'string', default: '' },
     TWITCH_CHANNEL: { type: 'string', default: '' },
+    TWITCH_CLIENT_ID: { type: 'string', default: '' },
     SCRIPT_ALLOWLIST: { type: 'string', default: '' },
+    // Media control mode: 'jellyfin' or 'os'
+    MEDIA_CONTROL_MODE: { type: 'string', default: 'jellyfin' },
+    // Song request mode: 'chat' (!sr command), 'channel_points' (redeem), or 'both'
+    SONG_REQUEST_MODE: { type: 'string', default: 'chat' },
+    // The exact name of the channel point reward used for song requests (channel_points mode)
+    SONG_REQUEST_REDEEM_NAME: { type: 'string', default: '' },
+    // Whether song requests are enabled at all
+    SONG_REQUEST_ENABLED: { type: 'string', default: 'true' },
+    // JSON map of redeem title -> action config
+    REDEEM_ACTIONS: { type: 'string', default: '{}' },
   }
 });
 
@@ -43,7 +54,13 @@ function getConfig() {
     TWITCH_USERNAME: store.get('TWITCH_USERNAME'),
     TWITCH_OAUTH: store.get('TWITCH_OAUTH'),
     TWITCH_CHANNEL: store.get('TWITCH_CHANNEL'),
+    TWITCH_CLIENT_ID: store.get('TWITCH_CLIENT_ID'),
     SCRIPT_ALLOWLIST: store.get('SCRIPT_ALLOWLIST'),
+    MEDIA_CONTROL_MODE: store.get('MEDIA_CONTROL_MODE'),
+    SONG_REQUEST_MODE: store.get('SONG_REQUEST_MODE'),
+    SONG_REQUEST_REDEEM_NAME: store.get('SONG_REQUEST_REDEEM_NAME'),
+    SONG_REQUEST_ENABLED: store.get('SONG_REQUEST_ENABLED'),
+    REDEEM_ACTIONS: store.get('REDEEM_ACTIONS'),
   };
 }
 
@@ -127,7 +144,6 @@ autoUpdater.on('update-downloaded', (info) => {
       version: info.version
     });
   }
-  // Show dialog asking to restart
   dialog.showMessageBox(mainWindow, {
     type: 'info',
     title: 'Update Ready',
@@ -166,7 +182,6 @@ app.whenReady().then(() => {
   startListener(getConfig());
   createWindow();
 
-  // Check for updates after window loads (only in packaged app)
   if (app.isPackaged) {
     setTimeout(() => autoUpdater.checkForUpdates(), 5000);
   }

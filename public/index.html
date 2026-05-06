@@ -18,6 +18,7 @@
       --red: #ff453a;
       --yellow: #ffd60a;
       --blue: #0a84ff;
+      --purple: #bf5af2;
       --text: #f5f5f7;
       --text2: #aeaeb2;
       --text3: #636366;
@@ -54,6 +55,7 @@
     .status-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; letter-spacing: 0.04em; }
     .status-badge.ok { background: rgba(50,215,75,0.15); color: var(--green); }
     .status-badge.err { background: rgba(255,69,58,0.15); color: var(--red); }
+    .status-badge.warn { background: rgba(255,214,10,0.15); color: var(--yellow); }
     .now-playing-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
     #now-playing-text { font-size: 12px; color: var(--text); line-height: 1.4; word-break: break-word; }
     .stats-row { display: flex; gap: 6px; }
@@ -87,6 +89,7 @@
     .log-ok.ok { color: var(--green); }
     .log-ok.err { color: var(--red); }
     .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; }
+    /* Settings */
     .settings-view { flex: 1; overflow-y: auto; padding: 20px; }
     .settings-view::-webkit-scrollbar { width: 4px; }
     .settings-view::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -108,8 +111,67 @@
     .btn-primary:hover { background: #7c5ff7; }
     .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
     .btn-secondary:hover { background: var(--border); }
+    .btn-danger { background: rgba(255,69,58,0.15); color: var(--red); border: 1px solid rgba(255,69,58,0.3); }
+    .btn-danger:hover { background: rgba(255,69,58,0.25); }
+    .btn-sm { font-size: 11px; padding: 3px 10px; border-radius: 5px; }
+    .btn-approve { background: rgba(50,215,75,0.15); color: var(--green); border: 1px solid rgba(50,215,75,0.3); }
+    .btn-approve:hover { background: rgba(50,215,75,0.25); }
     .save-status { font-size: 12px; color: var(--green); opacity: 0; transition: opacity 0.3s; }
     .save-status.visible { opacity: 1; }
+    /* Toggle switch */
+    .toggle-wrap { display: flex; align-items: center; gap: 8px; }
+    .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track { position: absolute; inset: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
+    .toggle input:checked + .toggle-track { background: var(--accent); border-color: var(--accent); }
+    .toggle-track::after { content: ''; position: absolute; left: 2px; top: 2px; width: 14px; height: 14px; background: white; border-radius: 50%; transition: transform 0.2s; }
+    .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
+    /* Segmented control */
+    .seg-control { display: flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 2px; gap: 2px; }
+    .seg-btn { font-family: var(--font); font-size: 11px; font-weight: 500; padding: 4px 12px; border-radius: 5px; border: none; background: transparent; color: var(--text2); cursor: pointer; transition: all 0.15s; }
+    .seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+    /* Requests tab */
+    .requests-view { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    .requests-toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+    .search-wrap { position: relative; flex: 1; max-width: 400px; }
+    .search-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: var(--font); font-size: 12px; padding: 6px 10px 6px 30px; outline: none; transition: border-color 0.15s; }
+    .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 13px; pointer-events: none; }
+    .requests-body { flex: 1; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .requests-panel { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+    .requests-panel:last-child { border-right: none; }
+    .requests-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+    .requests-panel-title { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+    .requests-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .requests-list::-webkit-scrollbar { width: 4px; }
+    .requests-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    /* Search results dropdown */
+    .search-results { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin: 0 16px 8px; overflow: hidden; max-height: 280px; overflow-y: auto; display: none; }
+    .search-results.visible { display: block; }
+    .search-result-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); gap: 8px; }
+    .search-result-item:last-child { border-bottom: none; }
+    .search-result-item:hover { background: var(--surface2); }
+    .search-result-info { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow: hidden; }
+    .search-result-name { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .search-result-meta { font-size: 11px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Queue and wishlist items */
+    .queue-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; display: flex; align-items: center; gap: 8px; animation: fadeIn 0.15s ease; }
+    .queue-item-info { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+    .queue-item-title { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    .queue-item-meta { font-size: 11px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .queue-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .wishlist-item { background: var(--surface); border: 1px solid rgba(255,69,58,0.2); border-radius: 8px; padding: 9px 11px; display: flex; align-items: center; gap: 8px; animation: fadeIn 0.15s ease; }
+    .sr-mode-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 8px; background: rgba(110,79,246,0.15); color: #a78bfa; }
+    /* Redeem editor */
+    .redeem-list { padding: 0; }
+    .redeem-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    .redeem-item:last-child { border-bottom: none; }
+    .redeem-name { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; font-family: var(--font-mono); }
+    .redeem-type-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--surface2); color: var(--text2); }
+    .redeem-add-row { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); align-items: flex-end; flex-wrap: wrap; }
+    .redeem-add-row .setting-input { width: auto; flex: 1; min-width: 120px; }
+    select.setting-input { cursor: pointer; }
+    .redeem-detail-fields { display: flex; gap: 8px; flex: 1; min-width: 200px; }
   </style>
 </head>
 <body>
@@ -122,6 +184,7 @@
       <div class="titlebar-right">
         <div class="tab-bar">
           <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+          <button class="tab-btn" data-tab="requests">Requests</button>
           <button class="tab-btn" data-tab="settings">Settings</button>
         </div>
         <div class="ws-pill">
@@ -162,6 +225,13 @@
             </div>
             <span class="status-badge err" id="bot-badge">Offline</span>
           </div>
+          <div class="service-row disconnected" id="twitch-card">
+            <div class="service-info">
+              <div class="service-name">Twitch</div>
+              <div class="service-detail" id="twitch-detail">EventSub</div>
+            </div>
+            <span class="status-badge err" id="twitch-badge">Offline</span>
+          </div>
         </div>
         <div class="sidebar-section">
           <div class="section-label">Now Playing</div>
@@ -181,9 +251,27 @@
               <div class="stat-label">Errors</div>
             </div>
           </div>
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-value" id="stat-queue">0</div>
+              <div class="stat-label">Queued</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="stat-wishlist">0</div>
+              <div class="stat-label">Wishlist</div>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-section">
+          <div class="section-label">Media Mode</div>
+          <div class="now-playing-card" style="padding:8px 10px;">
+            <div id="media-mode-label" style="font-size:12px;color:var(--text2);">Jellyfin</div>
+          </div>
         </div>
       </aside>
       <div class="main-panel">
+
+        <!-- Dashboard tab -->
         <div class="panel-view active" id="tab-dashboard">
           <div class="log-toolbar">
             <div class="filter-group">
@@ -198,126 +286,190 @@
             <div class="empty-state">Waiting for commands...</div>
           </div>
         </div>
+
+        <!-- Requests tab -->
+        <div class="panel-view" id="tab-requests">
+          <div class="requests-view">
+            <div class="requests-toolbar">
+              <div class="search-wrap">
+                <span class="search-icon">🔍</span>
+                <input class="search-input" id="jf-search" type="text" placeholder="Search Jellyfin library..." autocomplete="off" />
+              </div>
+              <span class="sr-mode-badge" id="sr-mode-badge">chat: !sr</span>
+            </div>
+            <div class="search-results" id="search-results"></div>
+            <div class="requests-body">
+              <div class="requests-panel">
+                <div class="requests-panel-header">
+                  <span class="requests-panel-title">Queue</span>
+                  <button class="btn btn-secondary btn-sm" id="btn-clear-queue">Clear</button>
+                </div>
+                <div class="requests-list" id="queue-list">
+                  <div class="empty-state" style="padding:20px 0">No requests yet</div>
+                </div>
+              </div>
+              <div class="requests-panel">
+                <div class="requests-panel-header">
+                  <span class="requests-panel-title">Download Wishlist</span>
+                  <button class="btn btn-secondary btn-sm" id="btn-clear-wishlist">Clear</button>
+                </div>
+                <div class="requests-list" id="wishlist-list">
+                  <div class="empty-state" style="padding:20px 0">No wishlist items</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings tab -->
         <div class="panel-view" id="tab-settings">
           <div class="settings-view">
+
+            <!-- Jellyfin -->
             <div class="settings-group">
               <div class="settings-group-title">Jellyfin</div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Server URL</div>
-                  <div class="setting-desc">e.g. http://[LOCAL IP]:8096</div>
-                </div>
+                <div class="setting-label"><div class="setting-name">Server URL</div><div class="setting-desc">e.g. http://[LOCAL IP]:8096</div></div>
                 <input class="setting-input" id="cfg-jellyfin-url" type="text" placeholder="http://..." />
               </div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">API Key</div>
-                  <div class="setting-desc">Dashboard → API Keys — used if password is not set</div>
-                </div>
-                <div class="input-wrap">
-                  <input class="setting-input" id="cfg-jellyfin-key" type="password" placeholder="••••••••" />
-                  <button class="eye-btn" data-target="cfg-jellyfin-key">👁</button>
-                </div>
+                <div class="setting-label"><div class="setting-name">API Key</div><div class="setting-desc">Dashboard → API Keys — used if password is not set</div></div>
+                <div class="input-wrap"><input class="setting-input" id="cfg-jellyfin-key" type="password" placeholder="••••••••" /><button class="eye-btn" data-target="cfg-jellyfin-key">👁</button></div>
               </div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Password</div>
-                  <div class="setting-desc">Your Jellyfin password — used instead of API key if set</div>
-                </div>
-                <div class="input-wrap">
-                  <input class="setting-input" id="cfg-jellyfin-password" type="password" placeholder="••••••••" />
-                  <button class="eye-btn" data-target="cfg-jellyfin-password">👁</button>
-                </div>
+                <div class="setting-label"><div class="setting-name">Password</div><div class="setting-desc">Your Jellyfin password — used instead of API key if set</div></div>
+                <div class="input-wrap"><input class="setting-input" id="cfg-jellyfin-password" type="password" placeholder="••••••••" /><button class="eye-btn" data-target="cfg-jellyfin-password">👁</button></div>
               </div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Username</div>
-                  <div class="setting-desc">Your Jellyfin username — filters sessions to your account only</div>
-                </div>
+                <div class="setting-label"><div class="setting-name">Username</div><div class="setting-desc">Your Jellyfin username</div></div>
                 <input class="setting-input" id="cfg-jellyfin-username" type="text" placeholder="Username" />
               </div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Device ID</div>
-                  <div class="setting-desc">Dashboard → Devices — leave blank for auto</div>
-                </div>
+                <div class="setting-label"><div class="setting-name">Device ID</div><div class="setting-desc">Dashboard → Devices — leave blank for auto</div></div>
                 <input class="setting-input" id="cfg-jellyfin-device" type="text" placeholder="Optional" />
               </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Media Control Mode</div>
+                  <div class="setting-desc">Jellyfin: controls via Jellyfin API. OS: sends system media keys (works with any player).</div>
+                </div>
+                <div class="seg-control">
+                  <button class="seg-btn active" data-mode="jellyfin" id="mode-jellyfin">Jellyfin</button>
+                  <button class="seg-btn" data-mode="os" id="mode-os">OS Keys</button>
+                </div>
+              </div>
             </div>
+
+            <!-- Song Requests -->
+            <div class="settings-group">
+              <div class="settings-group-title">Song Requests</div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Enable Song Requests</div>
+                  <div class="setting-desc">Allow viewers to request songs. Works for affiliates and non-affiliates.</div>
+                </div>
+                <label class="toggle"><input type="checkbox" id="cfg-sr-enabled" /><span class="toggle-track"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Request Mode</div>
+                  <div class="setting-desc">Chat: viewers type !sr [song]. Channel Points: requires affiliate status.</div>
+                </div>
+                <div class="seg-control">
+                  <button class="seg-btn active" data-srmode="chat" id="srmode-chat">Chat (!sr)</button>
+                  <button class="seg-btn" data-srmode="channel_points" id="srmode-redeem">Channel Points</button>
+                </div>
+              </div>
+              <div class="setting-row" id="sr-redeem-name-row">
+                <div class="setting-label">
+                  <div class="setting-name">Redeem Name</div>
+                  <div class="setting-desc">Exact name of the channel point reward used for song requests</div>
+                </div>
+                <input class="setting-input" id="cfg-sr-redeem-name" type="text" placeholder="Song Request" />
+              </div>
+            </div>
+
+            <!-- OBS WebSocket -->
             <div class="settings-group">
               <div class="settings-group-title">OBS WebSocket</div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Host</div>
-                  <div class="setting-desc">Usually localhost</div>
-                </div>
+                <div class="setting-label"><div class="setting-name">Host</div><div class="setting-desc">Usually localhost</div></div>
                 <input class="setting-input" id="cfg-obs-host" type="text" placeholder="localhost" />
               </div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Port</div>
-                  <div class="setting-desc">Default is 4455</div>
-                </div>
+                <div class="setting-label"><div class="setting-name">Port</div><div class="setting-desc">Default is 4455</div></div>
                 <input class="setting-input" id="cfg-obs-port" type="text" placeholder="4455" />
               </div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Password</div>
-                  <div class="setting-desc">Tools → WebSocket Server Settings</div>
-                </div>
-                <div class="input-wrap">
-                  <input class="setting-input" id="cfg-obs-password" type="password" placeholder="••••••••" />
-                  <button class="eye-btn" data-target="cfg-obs-password">👁</button>
-                </div>
+                <div class="setting-label"><div class="setting-name">Password</div><div class="setting-desc">Tools → WebSocket Server Settings</div></div>
+                <div class="input-wrap"><input class="setting-input" id="cfg-obs-password" type="password" placeholder="••••••••" /><button class="eye-btn" data-target="cfg-obs-password">👁</button></div>
               </div>
             </div>
+
+            <!-- Twitch -->
             <div class="settings-group">
               <div class="settings-group-title">Twitch</div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Bot Username</div>
-                  <div class="setting-desc">Your bot account's username</div>
-                </div>
+                <div class="setting-label"><div class="setting-name">Bot Username</div><div class="setting-desc">Your bot account's username</div></div>
                 <input class="setting-input" id="cfg-twitch-username" type="text" placeholder="Twitch Bot Account Name" />
               </div>
               <div class="setting-row">
                 <div class="setting-label">
                   <div class="setting-name">OAuth Token</div>
-                  <div class="setting-desc">Get from Twitch Developer Portal</div>
+                  <div class="setting-desc">Get from Twitch Developer Portal — needs chat:read, channel:read:redemptions scopes</div>
                 </div>
-                <div class="input-wrap">
-                  <input class="setting-input" id="cfg-twitch-oauth" type="password" placeholder="oauth:••••••••" />
-                  <button class="eye-btn" data-target="cfg-twitch-oauth">👁</button>
-                </div>
+                <div class="input-wrap"><input class="setting-input" id="cfg-twitch-oauth" type="password" placeholder="oauth:••••••••" /><button class="eye-btn" data-target="cfg-twitch-oauth">👁</button></div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><div class="setting-name">Channel</div><div class="setting-desc">Your Twitch channel name</div></div>
+                <input class="setting-input" id="cfg-twitch-channel" type="text" placeholder="Twitch Channel Name" />
               </div>
               <div class="setting-row">
                 <div class="setting-label">
-                  <div class="setting-name">Channel</div>
-                  <div class="setting-desc">Your Twitch channel name</div>
+                  <div class="setting-name">Client ID</div>
+                  <div class="setting-desc">Required for EventSub (redeems + chat). Create an app at dev.twitch.tv.</div>
                 </div>
-                <input class="setting-input" id="cfg-twitch-channel" type="text" placeholder="Twitch Channel Name" />
+                <div class="input-wrap"><input class="setting-input" id="cfg-twitch-client-id" type="password" placeholder="••••••••" /><button class="eye-btn" data-target="cfg-twitch-client-id">👁</button></div>
               </div>
             </div>
+
+            <!-- Channel Point Redeems -->
+            <div class="settings-group">
+              <div class="settings-group-title">Channel Point Redeems</div>
+              <div class="redeem-list" id="redeem-list"></div>
+              <div class="redeem-add-row">
+                <input class="setting-input" id="new-redeem-name" type="text" placeholder="Exact redeem name..." style="flex:1;min-width:140px;" />
+                <select class="setting-input" id="new-redeem-type" style="width:120px;">
+                  <option value="script">Run Script</option>
+                  <option value="sound">Play Sound</option>
+                  <option value="scene">OBS Scene</option>
+                  <option value="source">OBS Source</option>
+                </select>
+                <div class="redeem-detail-fields" id="redeem-detail-fields">
+                  <input class="setting-input" id="new-redeem-detail" type="text" placeholder="Script URL / sound name / scene name..." style="flex:1;" />
+                </div>
+                <button class="btn btn-primary btn-sm" id="btn-add-redeem">Add</button>
+              </div>
+            </div>
+
+            <!-- Script Allowlist -->
             <div class="settings-group">
               <div class="settings-group-title">Script Allowlist</div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Allowed Domains</div>
-                  <div class="setting-desc">Comma-separated list of trusted domains for !run. Leave blank to allow any.</div>
-                </div>
+                <div class="setting-label"><div class="setting-name">Allowed Domains</div><div class="setting-desc">Comma-separated trusted domains for !run. Leave blank to allow any.</div></div>
                 <input class="setting-input" id="cfg-script-allowlist" type="text" placeholder="pub-xxx.r2.dev, pastebin.com" style="width:280px" />
               </div>
             </div>
+
+            <!-- Listener -->
             <div class="settings-group">
               <div class="settings-group-title">Listener</div>
               <div class="setting-row">
-                <div class="setting-label">
-                  <div class="setting-name">Port</div>
-                  <div class="setting-desc">Port the listener runs on</div>
-                </div>
+                <div class="setting-label"><div class="setting-name">Port</div><div class="setting-desc">Port the listener runs on</div></div>
                 <input class="setting-input" id="cfg-listener-port" type="text" placeholder="3000" />
               </div>
             </div>
+
             <div class="settings-actions">
               <span class="save-status" id="save-status">✓ Saved</span>
               <button class="btn btn-secondary" id="btn-check-updates" style="margin-right:auto">Check for Updates</button>
@@ -326,26 +478,50 @@
             </div>
           </div>
         </div>
+
       </div>
     </div>
   </div>
   <script>
     let ws, totalCommands = 0, totalErrors = 0, activeFilter = 'all', songPollInterval;
+    let mediaMode = 'jellyfin';
+    let srMode = 'chat';
+    let srEnabled = true;
+    let redeemActions = {};
+    let searchDebounce = null;
 
+    // --- WebSocket ---
     function connect() {
       ws = new WebSocket(`ws://${location.host}`);
-      ws.onopen = () => { document.getElementById('ws-dot').classList.add('live'); document.getElementById('ws-label').textContent = 'live'; };
-      ws.onclose = () => { document.getElementById('ws-dot').classList.remove('live'); document.getElementById('ws-label').textContent = 'reconnecting'; setTimeout(connect, 3000); };
+      ws.onopen = () => {
+        document.getElementById('ws-dot').classList.add('live');
+        document.getElementById('ws-label').textContent = 'live';
+      };
+      ws.onclose = () => {
+        document.getElementById('ws-dot').classList.remove('live');
+        document.getElementById('ws-label').textContent = 'reconnecting';
+        setTimeout(connect, 3000);
+      };
       ws.onmessage = (e) => {
         const data = JSON.parse(e.data);
         if (data.event === 'init') {
           updateService('obs', data.obs.connected);
           updateService('jellyfin', data.jellyfin.connected);
           updateService('bot', data.bot.connected);
+          updateService('twitch', data.twitch?.connected || false);
           data.log.forEach(entry => renderLog(entry, false));
           totalCommands = data.log.length;
           totalErrors = data.log.filter(l => !l.ok).length;
           updateStats();
+          // Apply modes from server
+          if (data.mediaMode) setMediaModeUI(data.mediaMode);
+          if (data.srMode) setSrModeUI(data.srMode);
+          srEnabled = data.srEnabled !== false;
+          document.getElementById('cfg-sr-enabled').checked = srEnabled;
+          // Load queue/wishlist
+          if (data.queue) data.queue.forEach(e => addQueueItem(e));
+          if (data.wishlist) data.wishlist.forEach(e => addWishlistItem(e));
+          updateSidebarCounts();
         } else if (data.event === 'status') {
           updateService(data.service, data.connected);
         } else if (data.event === 'play_sound') {
@@ -353,13 +529,29 @@
           audio.play().catch(err => console.warn('Audio play failed:', err));
         } else if (data.event === 'log') {
           addLog(data.entry);
+        } else if (data.event === 'queue_add') {
+          addQueueItem(data.entry);
+          updateSidebarCounts();
+        } else if (data.event === 'queue_update') {
+          // update status badge if needed
+        } else if (data.event === 'queue_remove') {
+          document.getElementById(`qi-${data.id}`)?.remove();
+          updateSidebarCounts();
+        } else if (data.event === 'wishlist_add') {
+          addWishlistItem(data.entry);
+          updateSidebarCounts();
+        } else if (data.event === 'wishlist_remove') {
+          document.getElementById(`wi-${data.id}`)?.remove();
+          updateSidebarCounts();
         }
       };
     }
 
     function updateService(service, connected) {
       const id = service === 'jellyfin' ? 'jf' : service;
-      document.getElementById(`${id}-card`).className = `service-row ${connected ? 'connected' : 'disconnected'}`;
+      const card = document.getElementById(`${id}-card`);
+      if (!card) return;
+      card.className = `service-row ${connected ? 'connected' : 'disconnected'}`;
       const badge = document.getElementById(`${id}-badge`);
       badge.className = `status-badge ${connected ? 'ok' : 'err'}`;
       badge.textContent = connected ? 'Online' : 'Offline';
@@ -370,6 +562,9 @@
       }
       if (service === 'bot') {
         document.getElementById('bot-detail').textContent = connected ? 'Pinging every 30s' : 'Waiting for ping...';
+      }
+      if (service === 'twitch') {
+        document.getElementById('twitch-detail').textContent = connected ? 'EventSub connected' : 'EventSub';
       }
     }
 
@@ -407,8 +602,43 @@
       else el.classList.toggle('hidden', el.dataset.type !== activeFilter);
     }
 
-    function updateStats() { document.getElementById('stat-total').textContent = totalCommands; document.getElementById('stat-errors').textContent = totalErrors; }
+    function updateStats() {
+      document.getElementById('stat-total').textContent = totalCommands;
+      document.getElementById('stat-errors').textContent = totalErrors;
+    }
 
+    function updateSidebarCounts() {
+      document.getElementById('stat-queue').textContent = document.querySelectorAll('[id^="qi-"]').length;
+      document.getElementById('stat-wishlist').textContent = document.querySelectorAll('[id^="wi-"]').length;
+    }
+
+    // --- Media mode UI ---
+    function setMediaModeUI(mode) {
+      mediaMode = mode;
+      document.querySelectorAll('.seg-btn[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+      document.getElementById('media-mode-label').textContent = mode === 'os' ? 'OS Media Keys' : 'Jellyfin';
+    }
+
+    document.querySelectorAll('.seg-btn[data-mode]').forEach(btn => {
+      btn.addEventListener('click', () => setMediaModeUI(btn.dataset.mode));
+    });
+
+    // --- SR mode UI ---
+    function setSrModeUI(mode) {
+      srMode = mode;
+      document.querySelectorAll('.seg-btn[data-srmode]').forEach(b => b.classList.toggle('active', b.dataset.srmode === mode));
+      document.getElementById('sr-redeem-name-row').style.display = mode === 'channel_points' ? 'flex' : 'none';
+      document.getElementById('sr-mode-badge').textContent = mode === 'channel_points' ? 'channel points' : 'chat: !sr';
+    }
+
+    document.querySelectorAll('.seg-btn[data-srmode]').forEach(btn => {
+      btn.addEventListener('click', () => setSrModeUI(btn.dataset.srmode));
+    });
+
+    // Initial hide of redeem name row
+    document.getElementById('sr-redeem-name-row').style.display = 'none';
+
+    // --- Filters ---
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -417,16 +647,18 @@
       });
     });
 
+    // --- Tabs ---
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.panel-view').forEach(v => v.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
-        if (btn.dataset.tab === 'settings') loadSettings();
+        if (btn.dataset.tab === 'settings') { loadSettings(); loadRedeems(); }
       });
     });
 
+    // --- Settings fields map ---
     const fields = {
       'cfg-jellyfin-url': 'JELLYFIN_URL',
       'cfg-jellyfin-key': 'JELLYFIN_API_KEY',
@@ -439,8 +671,10 @@
       'cfg-twitch-username': 'TWITCH_USERNAME',
       'cfg-twitch-oauth': 'TWITCH_OAUTH',
       'cfg-twitch-channel': 'TWITCH_CHANNEL',
+      'cfg-twitch-client-id': 'TWITCH_CLIENT_ID',
       'cfg-script-allowlist': 'SCRIPT_ALLOWLIST',
-      'cfg-listener-port': 'LISTENER_PORT'
+      'cfg-listener-port': 'LISTENER_PORT',
+      'cfg-sr-redeem-name': 'SONG_REQUEST_REDEEM_NAME'
     };
 
     const isElectron = !!window.electronAPI;
@@ -457,6 +691,9 @@
           const el = document.getElementById(id);
           if (el && saved[key]) el.value = saved[key];
         });
+        if (saved.MEDIA_CONTROL_MODE) setMediaModeUI(saved.MEDIA_CONTROL_MODE);
+        if (saved.SONG_REQUEST_MODE) setSrModeUI(saved.SONG_REQUEST_MODE);
+        document.getElementById('cfg-sr-enabled').checked = saved.SONG_REQUEST_ENABLED !== 'false';
       } catch {}
     }
 
@@ -464,14 +701,19 @@
       const settings = {};
       Object.entries(fields).forEach(([id, key]) => {
         const el = document.getElementById(id);
-         if (el) settings[key] = el.value.trim();
+        if (el) settings[key] = el.value.trim();
       });
+      settings.MEDIA_CONTROL_MODE = mediaMode;
+      settings.SONG_REQUEST_MODE = srMode;
+      settings.SONG_REQUEST_ENABLED = document.getElementById('cfg-sr-enabled').checked ? 'true' : 'false';
       if (isElectron) {
         await window.electronAPI.saveSettings(settings);
       } else {
         localStorage.setItem('cha0s_settings', JSON.stringify(settings));
         try { await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) }); } catch {}
       }
+      // Save redeem actions too
+      await saveRedeems();
       const status = document.getElementById('save-status');
       status.classList.add('visible'); setTimeout(() => status.classList.remove('visible'), 3000);
     });
@@ -488,7 +730,227 @@
     });
 
     document.querySelectorAll('.eye-btn').forEach(btn => {
-      btn.addEventListener('click', () => { const input = document.getElementById(btn.dataset.target); input.type = input.type === 'password' ? 'text' : 'password'; });
+      btn.addEventListener('click', () => {
+        const input = document.getElementById(btn.dataset.target);
+        input.type = input.type === 'password' ? 'text' : 'password';
+      });
+    });
+
+    // --- Redeem actions ---
+    async function loadRedeems() {
+      try {
+        const res = await fetch('/api/redeems');
+        const data = await res.json();
+        redeemActions = data.redeems || {};
+        renderRedeemList();
+      } catch {}
+    }
+
+    async function saveRedeems() {
+      try {
+        await fetch('/api/redeems', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ redeems: redeemActions })
+        });
+      } catch {}
+    }
+
+    function renderRedeemList() {
+      const list = document.getElementById('redeem-list');
+      const entries = Object.entries(redeemActions);
+      if (entries.length === 0) {
+        list.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:var(--text3)">No redeems configured yet.</div>';
+        return;
+      }
+      list.innerHTML = entries.map(([name, action]) => `
+        <div class="redeem-item">
+          <span class="redeem-name">${name}</span>
+          <span class="redeem-type-badge">${action.type}</span>
+          <span style="font-size:11px;color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:8px">${getRedeemDetail(action)}</span>
+          <button class="btn btn-danger btn-sm" onclick="deleteRedeem('${name.replace(/'/g, "\\'")}')">Remove</button>
+        </div>
+      `).join('');
+    }
+
+    function getRedeemDetail(action) {
+      if (action.type === 'script') return action.script || '';
+      if (action.type === 'sound') return action.sound || '';
+      if (action.type === 'scene') return action.scene || '';
+      if (action.type === 'source') return `${action.source || ''} → ${action.visible !== false ? 'on' : 'off'}`;
+      return '';
+    }
+
+    function deleteRedeem(name) {
+      delete redeemActions[name];
+      renderRedeemList();
+    }
+
+    // Dynamic detail field based on type
+    document.getElementById('new-redeem-type').addEventListener('change', function() {
+      const type = this.value;
+      const fields = document.getElementById('redeem-detail-fields');
+      if (type === 'source') {
+        fields.innerHTML = `
+          <input class="setting-input" id="new-redeem-detail" type="text" placeholder="Source name..." style="flex:1;" />
+          <select class="setting-input" id="new-redeem-source-vis" style="width:80px;">
+            <option value="true">On</option>
+            <option value="false">Off</option>
+          </select>`;
+      } else {
+        const placeholders = { script: 'Script URL...', sound: 'Sound name or URL...', scene: 'Scene name...' };
+        fields.innerHTML = `<input class="setting-input" id="new-redeem-detail" type="text" placeholder="${placeholders[type] || ''}" style="flex:1;" />`;
+      }
+    });
+
+    document.getElementById('btn-add-redeem').addEventListener('click', () => {
+      const name = document.getElementById('new-redeem-name').value.trim();
+      const type = document.getElementById('new-redeem-type').value;
+      const detail = document.getElementById('new-redeem-detail')?.value.trim();
+      if (!name || !detail) return;
+      if (type === 'script') redeemActions[name] = { type, script: detail };
+      else if (type === 'sound') redeemActions[name] = { type, sound: detail };
+      else if (type === 'scene') redeemActions[name] = { type, scene: detail };
+      else if (type === 'source') {
+        const vis = document.getElementById('new-redeem-source-vis')?.value !== 'false';
+        redeemActions[name] = { type, source: detail, visible: vis };
+      }
+      document.getElementById('new-redeem-name').value = '';
+      document.getElementById('new-redeem-detail').value = '';
+      renderRedeemList();
+    });
+
+    // --- Jellyfin search ---
+    document.getElementById('jf-search').addEventListener('input', (e) => {
+      clearTimeout(searchDebounce);
+      const q = e.target.value.trim();
+      if (!q) { document.getElementById('search-results').classList.remove('visible'); return; }
+      searchDebounce = setTimeout(() => doSearch(q), 350);
+    });
+
+    async function doSearch(q) {
+      try {
+        const res = await fetch(`/api/jellyfin/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        renderSearchResults(data.items || []);
+      } catch {}
+    }
+
+    function renderSearchResults(items) {
+      const el = document.getElementById('search-results');
+      if (items.length === 0) {
+        el.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text3)">No results found</div>';
+        el.classList.add('visible');
+        return;
+      }
+      el.innerHTML = items.map(item => {
+        const dur = item.duration ? `${Math.floor(item.duration/60)}:${String(item.duration%60).padStart(2,'0')}` : '';
+        return `<div class="search-result-item">
+          <div class="search-result-info">
+            <div class="search-result-name">${item.name}</div>
+            <div class="search-result-meta">${item.artist}${item.album ? ' · ' + item.album : ''}${dur ? ' · ' + dur : ''}</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick='addToQueue(${JSON.stringify(item)})'>+ Queue</button>
+        </div>`;
+      }).join('');
+      el.classList.add('visible');
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#jf-search') && !e.target.closest('#search-results')) {
+        document.getElementById('search-results').classList.remove('visible');
+      }
+    });
+
+    async function addToQueue(item) {
+      document.getElementById('search-results').classList.remove('visible');
+      document.getElementById('jf-search').value = '';
+      await fetch('/api/queue/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: 'streamer', query: item.name, itemId: item.id, itemName: item.name, itemArtist: item.artist, itemAlbum: item.album })
+      });
+    }
+
+    // --- Queue rendering ---
+    function addQueueItem(entry) {
+      const list = document.getElementById('queue-list');
+      const empty = list.querySelector('.empty-state');
+      if (empty) empty.remove();
+      const el = document.createElement('div');
+      el.className = 'queue-item';
+      el.id = `qi-${entry.id}`;
+      const title = entry.resolvedItem ? `${entry.resolvedItem.artist} — ${entry.resolvedItem.name}` : entry.query;
+      const meta = `requested by ${entry.user}${entry.source ? ' · ' + entry.source : ''}`;
+      el.innerHTML = `
+        <div class="queue-item-info">
+          <div class="queue-item-title">${title}</div>
+          <div class="queue-item-meta">${meta}</div>
+        </div>
+        <div class="queue-item-actions">
+          ${entry.resolvedItem ? `<button class="btn btn-approve btn-sm" onclick="approveRequest('${entry.id}')">▶ Play</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="skipRequest('${entry.id}')">✕</button>
+        </div>`;
+      list.appendChild(el);
+      updateSidebarCounts();
+    }
+
+    async function approveRequest(id) {
+      await fetch(`/api/queue/${id}/approve`, { method: 'POST' });
+    }
+
+    async function skipRequest(id) {
+      await fetch(`/api/queue/${id}/skip`, { method: 'POST' });
+      document.getElementById(`qi-${id}`)?.remove();
+      updateSidebarCounts();
+    }
+
+    document.getElementById('btn-clear-queue').addEventListener('click', async () => {
+      const items = document.querySelectorAll('[id^="qi-"]');
+      for (const el of items) {
+        const id = el.id.replace('qi-', '');
+        await fetch(`/api/queue/${id}/skip`, { method: 'POST' });
+        el.remove();
+      }
+      document.getElementById('queue-list').innerHTML = '<div class="empty-state" style="padding:20px 0">No requests yet</div>';
+      updateSidebarCounts();
+    });
+
+    // --- Wishlist rendering ---
+    function addWishlistItem(entry) {
+      const list = document.getElementById('wishlist-list');
+      const empty = list.querySelector('.empty-state');
+      if (empty) empty.remove();
+      const el = document.createElement('div');
+      el.className = 'wishlist-item';
+      el.id = `wi-${entry.id}`;
+      el.innerHTML = `
+        <div class="queue-item-info">
+          <div class="queue-item-title">${entry.query}</div>
+          <div class="queue-item-meta">requested by ${entry.user} · not in library</div>
+        </div>
+        <div class="queue-item-actions">
+          <button class="btn btn-danger btn-sm" onclick="removeWishlist('${entry.id}')">✕</button>
+        </div>`;
+      list.appendChild(el);
+      updateSidebarCounts();
+    }
+
+    async function removeWishlist(id) {
+      await fetch(`/api/wishlist/${id}`, { method: 'DELETE' });
+      document.getElementById(`wi-${id}`)?.remove();
+      updateSidebarCounts();
+    }
+
+    document.getElementById('btn-clear-wishlist').addEventListener('click', async () => {
+      const items = document.querySelectorAll('[id^="wi-"]');
+      for (const el of items) {
+        const id = el.id.replace('wi-', '');
+        await fetch(`/api/wishlist/${id}`, { method: 'DELETE' });
+        el.remove();
+      }
+      document.getElementById('wishlist-list').innerHTML = '<div class="empty-state" style="padding:20px 0">No wishlist items</div>';
+      updateSidebarCounts();
     });
 
     // --- Auto updater ---
@@ -498,22 +960,11 @@
         const msg = document.getElementById('update-banner-msg');
         const installBtn = document.getElementById('update-install-btn');
         banner.classList.add('visible');
-        if (data.status === 'available') {
-          msg.textContent = `v${data.version} is available — downloading...`;
-          installBtn.style.display = 'none';
-        } else if (data.status === 'downloading') {
-          msg.textContent = `Downloading update... ${data.percent}%`;
-          installBtn.style.display = 'none';
-        } else if (data.status === 'downloaded') {
-          msg.textContent = `v${data.version} is ready to install`;
-          installBtn.style.display = 'block';
-        }
+        if (data.status === 'available') { msg.textContent = `v${data.version} is available — downloading...`; installBtn.style.display = 'none'; }
+        else if (data.status === 'downloading') { msg.textContent = `Downloading update... ${data.percent}%`; installBtn.style.display = 'none'; }
+        else if (data.status === 'downloaded') { msg.textContent = `v${data.version} is ready to install`; installBtn.style.display = 'block'; }
       });
     }
-
-    document.getElementById('update-install-btn')?.addEventListener('click', () => {
-      // Trigger restart via IPC — handled by dialog in main.js
-    });
 
     document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
       if (window.electronAPI) {
