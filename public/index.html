@@ -118,6 +118,9 @@
     .btn-approve:hover { background: rgba(50,215,75,0.25); }
     .save-status { font-size: 12px; color: var(--green); opacity: 0; transition: opacity 0.3s; }
     .save-status.visible { opacity: 1; }
+    /* Greyed-out Jellyfin rows when OS mode is active */
+    .jellyfin-only { transition: opacity 0.2s; }
+    .jellyfin-only.dimmed { opacity: 0.35; pointer-events: none; }
     /* Toggle switch */
     .toggle-wrap { display: flex; align-items: center; gap: 8px; }
     .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
@@ -172,6 +175,40 @@
     .redeem-add-row .setting-input { width: auto; flex: 1; min-width: 120px; }
     select.setting-input { cursor: pointer; }
     .redeem-detail-fields { display: flex; gap: 8px; flex: 1; min-width: 200px; }
+    /* Commands tab */
+    .commands-view { flex: 1; overflow-y: auto; padding: 20px; }
+    .commands-view::-webkit-scrollbar { width: 4px; }
+    .commands-view::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .commands-table { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .commands-table-header { display: grid; grid-template-columns: 36px 110px 160px 130px 100px 1fr; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+    .commands-table-header span { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+    .command-row { display: grid; grid-template-columns: 36px 110px 160px 130px 100px 1fr; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--border); transition: background 0.1s; }
+    .command-row:last-child { border-bottom: none; }
+    .command-row:hover { background: rgba(255,255,255,0.02); }
+    .command-row.disabled .cmd-name,
+    .command-row.disabled .cmd-desc { opacity: 0.38; }
+    .cmd-name { font-family: var(--font-mono); font-size: 12px; color: var(--accent); font-weight: 600; }
+    .cmd-desc { font-size: 12px; color: var(--text2); }
+    .cmd-perm-select { font-family: var(--font); font-size: 11px; font-weight: 500; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 5px 8px; width: 100%; outline: none; cursor: pointer; transition: border-color 0.15s; }
+    .cmd-perm-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .commands-save-bar { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 16px 0 0; }
+    /* Sources checkbox dropdown */
+    .sources-dropdown { position: relative; }
+    .sources-trigger { font-family: var(--font); font-size: 11px; font-weight: 500; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); padding: 5px 8px; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; user-select: none; transition: border-color 0.15s; min-width: 90px; justify-content: space-between; }
+    .sources-trigger:hover { border-color: var(--accent); }
+    .sources-trigger .caret { font-size: 9px; opacity: 0.5; }
+    .sources-panel { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px; z-index: 100; min-width: 160px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+    .sources-panel.open { display: block; }
+    .source-check-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; cursor: pointer; }
+    .source-check-row:hover { background: var(--surface2); }
+    .source-check-row input[type=checkbox] { accent-color: var(--accent); width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; }
+    .source-check-row label { font-size: 12px; color: var(--text2); cursor: pointer; }
+    /* OAuth link row */
+    .oauth-link-row { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--border); background: rgba(110,79,246,0.06); }
+    .oauth-link-row span { font-size: 11px; color: var(--text3); flex: 1; }
+    .oauth-link { font-size: 11px; font-weight: 600; color: var(--accent); text-decoration: none; padding: 4px 10px; border: 1px solid rgba(110,79,246,0.4); border-radius: 6px; white-space: nowrap; transition: all 0.15s; }
+    .oauth-link:hover { background: rgba(110,79,246,0.15); }
+    .oauth-link.disabled { opacity: 0.4; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -184,6 +221,7 @@
       <div class="titlebar-right">
         <div class="tab-bar">
           <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+          <button class="tab-btn" data-tab="commands">Commands</button>
           <button class="tab-btn" data-tab="requests">Requests</button>
           <button class="tab-btn" data-tab="settings">Settings</button>
         </div>
@@ -217,13 +255,6 @@
               <div class="service-detail" id="jf-detail">Checking...</div>
             </div>
             <span class="status-badge err" id="jf-badge">Offline</span>
-          </div>
-          <div class="service-row disconnected" id="bot-card">
-            <div class="service-info">
-              <div class="service-name">Bot</div>
-              <div class="service-detail" id="bot-detail">Waiting for ping...</div>
-            </div>
-            <span class="status-badge err" id="bot-badge">Offline</span>
           </div>
           <div class="service-row disconnected" id="twitch-card">
             <div class="service-info">
@@ -287,6 +318,27 @@
           </div>
         </div>
 
+        <!-- Commands tab -->
+        <div class="panel-view" id="tab-commands">
+          <div class="commands-view">
+            <div class="commands-table">
+              <div class="commands-table-header">
+                <span></span>
+                <span>Command</span>
+                <span>Description</span>
+                <span>Permission</span>
+                <span>Sources</span>
+                <span>Response</span>
+              </div>
+              <div id="commands-list"></div>
+            </div>
+            <div class="commands-save-bar">
+              <span class="save-status" id="cmd-save-status">✓ Saved</span>
+              <button class="btn btn-primary" id="btn-save-commands">Save Commands</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Requests tab -->
         <div class="panel-view" id="tab-requests">
           <div class="requests-view">
@@ -328,23 +380,23 @@
             <!-- Jellyfin -->
             <div class="settings-group">
               <div class="settings-group-title">Jellyfin</div>
-              <div class="setting-row">
+              <div class="setting-row jellyfin-only" id="jf-row-url">
                 <div class="setting-label"><div class="setting-name">Server URL</div><div class="setting-desc">e.g. http://[LOCAL IP]:8096</div></div>
                 <input class="setting-input" id="cfg-jellyfin-url" type="text" placeholder="http://..." />
               </div>
-              <div class="setting-row">
+              <div class="setting-row jellyfin-only" id="jf-row-key">
                 <div class="setting-label"><div class="setting-name">API Key</div><div class="setting-desc">Dashboard → API Keys — used if password is not set</div></div>
                 <div class="input-wrap"><input class="setting-input" id="cfg-jellyfin-key" type="password" placeholder="••••••••" /><button class="eye-btn" data-target="cfg-jellyfin-key">👁</button></div>
               </div>
-              <div class="setting-row">
+              <div class="setting-row jellyfin-only" id="jf-row-password">
                 <div class="setting-label"><div class="setting-name">Password</div><div class="setting-desc">Your Jellyfin password — used instead of API key if set</div></div>
                 <div class="input-wrap"><input class="setting-input" id="cfg-jellyfin-password" type="password" placeholder="••••••••" /><button class="eye-btn" data-target="cfg-jellyfin-password">👁</button></div>
               </div>
-              <div class="setting-row">
+              <div class="setting-row jellyfin-only" id="jf-row-username">
                 <div class="setting-label"><div class="setting-name">Username</div><div class="setting-desc">Your Jellyfin username</div></div>
                 <input class="setting-input" id="cfg-jellyfin-username" type="text" placeholder="Username" />
               </div>
-              <div class="setting-row">
+              <div class="setting-row jellyfin-only" id="jf-row-device">
                 <div class="setting-label"><div class="setting-name">Device ID</div><div class="setting-desc">Dashboard → Devices — leave blank for auto</div></div>
                 <input class="setting-input" id="cfg-jellyfin-device" type="text" placeholder="Optional" />
               </div>
@@ -410,26 +462,58 @@
             <div class="settings-group">
               <div class="settings-group-title">Twitch</div>
               <div class="setting-row">
-                <div class="setting-label"><div class="setting-name">Bot Username</div><div class="setting-desc">Your bot account's username</div></div>
-                <input class="setting-input" id="cfg-twitch-username" type="text" placeholder="Twitch Bot Account Name" />
-              </div>
-              <div class="setting-row">
                 <div class="setting-label">
                   <div class="setting-name">OAuth Token</div>
-                  <div class="setting-desc">Get from Twitch Developer Portal — needs chat:read, channel:read:redemptions scopes</div>
+                  <div class="setting-desc">Broadcaster account token — used to read chat and redeems.</div>
                 </div>
                 <div class="input-wrap"><input class="setting-input" id="cfg-twitch-oauth" type="password" placeholder="oauth:••••••••" /><button class="eye-btn" data-target="cfg-twitch-oauth">👁</button></div>
               </div>
               <div class="setting-row">
-                <div class="setting-label"><div class="setting-name">Channel</div><div class="setting-desc">Your Twitch channel name</div></div>
-                <input class="setting-input" id="cfg-twitch-channel" type="text" placeholder="Twitch Channel Name" />
+                <div class="setting-label"><div class="setting-name">Channel</div><div class="setting-desc">Your Twitch channel name (lowercase)</div></div>
+                <input class="setting-input" id="cfg-twitch-channel" type="text" placeholder="yourchannel" />
               </div>
               <div class="setting-row">
                 <div class="setting-label">
                   <div class="setting-name">Client ID</div>
-                  <div class="setting-desc">Required for EventSub (redeems + chat). Create an app at dev.twitch.tv.</div>
+                  <div class="setting-desc">From dev.twitch.tv — create an app, add <strong>http://localhost:3000/twitch/auth/callback</strong> as a redirect URI, then paste the Client ID here.</div>
                 </div>
-                <div class="input-wrap"><input class="setting-input" id="cfg-twitch-client-id" type="password" placeholder="••••••••" /><button class="eye-btn" data-target="cfg-twitch-client-id">👁</button></div>
+                <div class="input-wrap"><input class="setting-input" id="cfg-twitch-client-id" type="password" placeholder="••••••••" oninput="updateOAuthLink()" /><button class="eye-btn" data-target="cfg-twitch-client-id">👁</button></div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Client Secret</div>
+                  <div class="setting-desc">From dev.twitch.tv — required for token exchange. If omitted, PKCE is used instead.</div>
+                </div>
+                <div class="input-wrap"><input class="setting-input" id="cfg-twitch-client-secret" type="password" placeholder="••••••••" /><button class="eye-btn" data-target="cfg-twitch-client-secret">👁</button></div>
+              </div>
+              <div class="oauth-link-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;">
+                  <span id="oauth-status-text">Paste your Client ID above, then click to authorize. The token will fill in automatically.</span>
+                  <button id="btn-get-token" class="oauth-link disabled" onclick="startOAuth()">🔑 Authorize</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;width:100%;">
+                  <span style="font-size:10px;color:var(--text3);white-space:nowrap;">Add to dev.twitch.tv:</span>
+                  <code id="redirect-uri-display" style="font-size:10px;color:var(--accent);background:var(--surface2);padding:3px 7px;border-radius:4px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">loading...</code>
+                  <button class="btn btn-secondary btn-sm" onclick="copyRedirectUri()">Copy</button>
+                </div>
+              </div>
+              <div class="setting-row" style="border-top: 1px solid var(--border); margin-top: 0;">
+                <div class="setting-label">
+                  <div class="setting-name">Bot Username <span style="font-size:10px;font-weight:400;color:var(--text3)">(optional)</span></div>
+                  <div class="setting-desc">A separate Twitch account that sends chat responses. Leave blank to respond as your broadcaster account.</div>
+                </div>
+                <input class="setting-input" id="cfg-twitch-bot-username" type="text" placeholder="mybotaccount" />
+              </div>
+              <div class="setting-row">
+                <div class="setting-label">
+                  <div class="setting-name">Bot OAuth Token <span style="font-size:10px;font-weight:400;color:var(--text3)">(optional)</span></div>
+                  <div class="setting-desc">Token for the bot account above. Only needs chat send permission.</div>
+                </div>
+                <div class="input-wrap"><input class="setting-input" id="cfg-twitch-bot-oauth" type="password" placeholder="oauth:••••••••" /><button class="eye-btn" data-target="cfg-twitch-bot-oauth">👁</button></div>
+              </div>
+              <div class="oauth-link-row">
+                <span id="oauth-bot-status-text">Authorize the bot account separately — only requests chat send permission.</span>
+                <button id="btn-get-bot-token" class="oauth-link disabled" onclick="startBotOAuth()">🤖 Authorize Bot</button>
               </div>
             </div>
 
@@ -507,12 +591,12 @@
         if (data.event === 'init') {
           updateService('obs', data.obs.connected);
           updateService('jellyfin', data.jellyfin.connected);
-          updateService('bot', data.bot.connected);
           updateService('twitch', data.twitch?.connected || false);
           data.log.forEach(entry => renderLog(entry, false));
           totalCommands = data.log.length;
           totalErrors = data.log.filter(l => !l.ok).length;
           updateStats();
+          if (data.commands) { commandsConfig = data.commands; }
           // Apply modes from server
           if (data.mediaMode) setMediaModeUI(data.mediaMode);
           if (data.srMode) setSrModeUI(data.srMode);
@@ -543,6 +627,43 @@
         } else if (data.event === 'wishlist_remove') {
           document.getElementById(`wi-${data.id}`)?.remove();
           updateSidebarCounts();
+        } else if (data.event === 'commands_update') {
+          commandsConfig = data.commands;
+          renderCommandsTable();
+        } else if (data.event === 'oauth_bot_token') {
+          const field = document.getElementById('cfg-twitch-bot-oauth');
+          if (field) field.value = data.token;
+          const btn = document.getElementById('btn-get-bot-token');
+          const statusText = document.getElementById('oauth-bot-status-text');
+          if (btn) { btn.textContent = '✓ Authorized'; btn.classList.add('disabled'); }
+          if (statusText) statusText.textContent = '✓ Bot token saved automatically.';
+          // Save only the bot token — don't touch other settings
+          if (isElectron) {
+            window.electronAPI.saveSettings({ TWITCH_BOT_OAUTH: data.token });
+          } else {
+            const saved = JSON.parse(localStorage.getItem('cha0s_settings') || '{}');
+            saved.TWITCH_BOT_OAUTH = data.token;
+            localStorage.setItem('cha0s_settings', JSON.stringify(saved));
+            fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ TWITCH_BOT_OAUTH: data.token }) }).catch(() => {});
+          }
+          setTimeout(() => { if (btn) { btn.textContent = '🤖 Authorize Bot'; btn.classList.remove('disabled'); } }, 5000);
+        } else if (data.event === 'oauth_token') {
+          const field = document.getElementById('cfg-twitch-oauth');
+          if (field) field.value = data.token;
+          const btn = document.getElementById('btn-get-token');
+          const statusText = document.getElementById('oauth-status-text');
+          if (btn) { btn.textContent = '✓ Authorized'; btn.classList.add('disabled'); }
+          if (statusText) statusText.textContent = '✓ Token saved automatically.';
+          // Save only the broadcaster token — don't touch other settings
+          if (isElectron) {
+            window.electronAPI.saveSettings({ TWITCH_OAUTH: data.token });
+          } else {
+            const saved = JSON.parse(localStorage.getItem('cha0s_settings') || '{}');
+            saved.TWITCH_OAUTH = data.token;
+            localStorage.setItem('cha0s_settings', JSON.stringify(saved));
+            fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ TWITCH_OAUTH: data.token }) }).catch(() => {});
+          }
+          setTimeout(() => { if (btn) { btn.textContent = '🔑 Authorize'; btn.classList.remove('disabled'); } }, 5000);
         }
       };
     }
@@ -559,9 +680,6 @@
         document.getElementById('jf-detail').textContent = connected ? 'Connected' : 'Unreachable';
         if (connected) startSongPoll();
         else { clearInterval(songPollInterval); document.getElementById('now-playing-text').textContent = '—'; }
-      }
-      if (service === 'bot') {
-        document.getElementById('bot-detail').textContent = connected ? 'Pinging every 30s' : 'Waiting for ping...';
       }
       if (service === 'twitch') {
         document.getElementById('twitch-detail').textContent = connected ? 'EventSub connected' : 'EventSub';
@@ -617,6 +735,8 @@
       mediaMode = mode;
       document.querySelectorAll('.seg-btn[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
       document.getElementById('media-mode-label').textContent = mode === 'os' ? 'OS Media Keys' : 'Jellyfin';
+      const isOS = mode === 'os';
+      document.querySelectorAll('.jellyfin-only').forEach(el => el.classList.toggle('dimmed', isOS));
     }
 
     document.querySelectorAll('.seg-btn[data-mode]').forEach(btn => {
@@ -654,9 +774,118 @@
         document.querySelectorAll('.panel-view').forEach(v => v.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
-        if (btn.dataset.tab === 'settings') { loadSettings(); loadRedeems(); }
+        if (btn.dataset.tab === 'settings') { loadSettings(); loadRedeems(); loadRedirectUris(); }
+        if (btn.dataset.tab === 'commands') renderCommandsTable();
       });
     });
+
+    // --- Commands ---
+    let commandsConfig = {};
+    const PERM_LEVELS = ['everyone', 'subscriber', 'vip', 'moderator', 'broadcaster'];
+    const PERM_LABELS = { everyone: 'Everyone', subscriber: 'Subscribers+', vip: 'VIPs+', moderator: 'Moderators+', broadcaster: 'Broadcaster only' };
+
+    const SOURCE_LABELS = { chat: 'Chat', whisper: 'Whisper', redemption_input: 'Redemption' };
+    const ALL_SOURCES = ['chat', 'whisper', 'redemption_input'];
+
+    function sourcesLabel(sources) {
+      if (!sources || sources.length === 0) return 'None';
+      if (sources.length === ALL_SOURCES.length) return 'All';
+      return sources.map(s => SOURCE_LABELS[s] || s).join(', ');
+    }
+
+    function renderCommandsTable() {
+      const list = document.getElementById('commands-list');
+      if (!Object.keys(commandsConfig).length) {
+        list.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--text3)">No commands loaded yet.</div>';
+        return;
+      }
+      list.innerHTML = Object.entries(commandsConfig).map(([name, cfg]) => `
+        <div class="command-row ${cfg.enabled ? '' : 'disabled'}" id="cmd-row-${name}">
+          <label class="toggle" title="${cfg.enabled ? 'Enabled' : 'Disabled'}">
+            <input type="checkbox" ${cfg.enabled ? 'checked' : ''} onchange="toggleCommand('${name}', this.checked)" />
+            <span class="toggle-track"></span>
+          </label>
+          <span class="cmd-name">!${name}</span>
+          <span class="cmd-desc">${cfg.description}</span>
+          <select class="cmd-perm-select" onchange="setCommandPerm('${name}', this.value)">
+            ${PERM_LEVELS.map(p => `<option value="${p}" ${cfg.permission === p ? 'selected' : ''}>${PERM_LABELS[p]}</option>`).join('')}
+          </select>
+          <div class="sources-dropdown" id="sd-${name}">
+            <div class="sources-trigger" onclick="toggleSourcesPanel('${name}', event)">
+              <span id="sl-${name}">${sourcesLabel(cfg.sources)}</span>
+              <span class="caret">▼</span>
+            </div>
+            <div class="sources-panel" id="sp-${name}">
+              ${ALL_SOURCES.map(s => `
+                <div class="source-check-row">
+                  <input type="checkbox" id="sc-${name}-${s}" ${(cfg.sources||[]).includes(s) ? 'checked' : ''}
+                    onchange="toggleSource('${name}', '${s}', this.checked)" />
+                  <label for="sc-${name}-${s}">${SOURCE_LABELS[s]}</label>
+                </div>`).join('')}
+            </div>
+          </div>
+          <input class="setting-input" style="font-size:11px;padding:4px 7px;width:100%;"
+            type="text" placeholder="No response"
+            value="${(cfg.response || '').replace(/"/g, '&quot;')}"
+            oninput="setCommandResponse('${name}', this.value)"
+            title="Variables: {user} {song} {result} {query}" />
+        </div>
+      `).join('');
+    }
+
+    function toggleSourcesPanel(name, e) {
+      e.stopPropagation();
+      // Close all other open panels first
+      document.querySelectorAll('.sources-panel.open').forEach(p => {
+        if (p.id !== `sp-${name}`) p.classList.remove('open');
+      });
+      document.getElementById(`sp-${name}`)?.classList.toggle('open');
+    }
+
+    // Close source panels when clicking outside
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.sources-panel.open').forEach(p => p.classList.remove('open'));
+    });
+
+    function toggleSource(name, source, checked) {
+      if (!commandsConfig[name]) return;
+      const sources = commandsConfig[name].sources || [];
+      commandsConfig[name].sources = checked
+        ? [...new Set([...sources, source])]
+        : sources.filter(s => s !== source);
+      const label = document.getElementById(`sl-${name}`);
+      if (label) label.textContent = sourcesLabel(commandsConfig[name].sources);
+    }
+
+    function toggleCommand(name, enabled) {
+      if (commandsConfig[name]) {
+        commandsConfig[name].enabled = enabled;
+        const row = document.getElementById(`cmd-row-${name}`);
+        if (row) row.classList.toggle('disabled', !enabled);
+      }
+    }
+
+    function setCommandPerm(name, perm) {
+      if (commandsConfig[name]) commandsConfig[name].permission = perm;
+    }
+
+    function setCommandResponse(name, value) {
+      if (commandsConfig[name]) commandsConfig[name].response = value;
+    }
+
+    async function saveCommands() {
+      try {
+        await fetch('/api/commands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commands: commandsConfig })
+        });
+        const status = document.getElementById('cmd-save-status');
+        status.classList.add('visible'); setTimeout(() => status.classList.remove('visible'), 3000);
+      } catch (err) { console.error('Failed to save commands', err); }
+    }
+
+    document.getElementById('btn-save-commands').addEventListener('click', saveCommands);
 
     // --- Settings fields map ---
     const fields = {
@@ -668,14 +897,133 @@
       'cfg-obs-host': 'OBS_HOST',
       'cfg-obs-port': 'OBS_PORT',
       'cfg-obs-password': 'OBS_PASSWORD',
-      'cfg-twitch-username': 'TWITCH_USERNAME',
       'cfg-twitch-oauth': 'TWITCH_OAUTH',
       'cfg-twitch-channel': 'TWITCH_CHANNEL',
       'cfg-twitch-client-id': 'TWITCH_CLIENT_ID',
+      'cfg-twitch-client-secret': 'TWITCH_CLIENT_SECRET',
+      'cfg-twitch-bot-username': 'TWITCH_BOT_USERNAME',
+      'cfg-twitch-bot-oauth': 'TWITCH_BOT_OAUTH',
       'cfg-script-allowlist': 'SCRIPT_ALLOWLIST',
       'cfg-listener-port': 'LISTENER_PORT',
       'cfg-sr-redeem-name': 'SONG_REQUEST_REDEEM_NAME'
     };
+
+    async function loadRedirectUris() {
+      try {
+        const res = await fetch('/twitch/auth/info');
+        const data = await res.json();
+        const el = document.getElementById('redirect-uri-display');
+        if (el) el.textContent = data.broadcaster;
+        el.dataset.uri = data.broadcaster;
+      } catch {}
+    }
+
+    function copyRedirectUri() {
+      const el = document.getElementById('redirect-uri-display');
+      const uri = el?.dataset.uri || el?.textContent;
+      if (uri) navigator.clipboard.writeText(uri).then(() => {
+        const btn = event.target;
+        btn.textContent = '✓ Copied';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
+      });
+    }
+
+    function updateOAuthLink() {
+      const clientId = document.getElementById('cfg-twitch-client-id')?.value.trim();
+      const btn = document.getElementById('btn-get-token');
+      const botBtn = document.getElementById('btn-get-bot-token');
+      if (btn) clientId ? btn.classList.remove('disabled') : btn.classList.add('disabled');
+      if (botBtn) clientId ? botBtn.classList.remove('disabled') : botBtn.classList.add('disabled');
+    }
+
+    const TWITCH_SCOPES = 'user:read:chat channel:bot channel:read:redemptions user:read:whispers whispers:read moderator:read:chat_messages';
+    const TWITCH_BOT_SCOPES = 'user:write:chat';
+
+    async function startBotOAuth() {
+      const clientId = document.getElementById('cfg-twitch-client-id')?.value.trim();
+      if (!clientId) return;
+      const btn = document.getElementById('btn-get-bot-token');
+      const statusText = document.getElementById('oauth-bot-status-text');
+      btn.textContent = '⏳ Waiting...';
+      btn.classList.add('disabled');
+
+      if (isElectron) {
+        statusText.textContent = 'Sign in as your bot account in the popup…';
+        try {
+          const { token } = await window.electronAPI.twitchOAuthPopup({ clientId, scopes: TWITCH_BOT_SCOPES });
+          const field = document.getElementById('cfg-twitch-bot-oauth');
+          if (field) field.value = token;
+          btn.textContent = '✓ Authorized';
+          statusText.textContent = '✓ Bot token saved.';
+          await window.electronAPI.saveSettings({ TWITCH_BOT_OAUTH: token });
+          setTimeout(() => { btn.textContent = '🤖 Authorize Bot'; btn.classList.remove('disabled'); }, 4000);
+        } catch (err) {
+          btn.textContent = '🤖 Authorize Bot';
+          btn.classList.remove('disabled');
+          statusText.textContent = err.message === 'Cancelled' ? 'Authorization cancelled.' : `Error: ${err.message}`;
+        }
+        return;
+      }
+
+      // Non-Electron fallback — server-side callback flow
+      statusText.textContent = 'Browser opened — log in as your bot account and authorize.';
+      try {
+        await fetch('/twitch/auth/bot/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId })
+        });
+      } catch {
+        btn.textContent = '🤖 Authorize Bot';
+        btn.classList.remove('disabled');
+        statusText.textContent = 'Could not open browser. Make sure the listener is running.';
+      }
+    }
+
+    async function startOAuth() {
+      const clientId = document.getElementById('cfg-twitch-client-id')?.value.trim();
+      if (!clientId) return;
+      const btn = document.getElementById('btn-get-token');
+      const statusText = document.getElementById('oauth-status-text');
+      btn.textContent = '⏳ Waiting...';
+      btn.classList.add('disabled');
+
+      if (isElectron) {
+        statusText.textContent = 'Authorize in the popup…';
+        try {
+          const { token } = await window.electronAPI.twitchOAuthPopup({ clientId, scopes: TWITCH_SCOPES });
+          const field = document.getElementById('cfg-twitch-oauth');
+          if (field) field.value = token;
+          btn.textContent = '✓ Authorized';
+          statusText.textContent = '✓ Token saved.';
+          await window.electronAPI.saveSettings({ TWITCH_OAUTH: token });
+          setTimeout(() => { btn.textContent = '🔑 Authorize'; btn.classList.remove('disabled'); }, 4000);
+        } catch (err) {
+          btn.textContent = '🔑 Authorize';
+          btn.classList.remove('disabled');
+          statusText.textContent = err.message === 'Cancelled' ? 'Authorization cancelled.' : `Error: ${err.message}`;
+        }
+        return;
+      }
+
+      // Non-Electron fallback — server-side callback flow
+      statusText.textContent = 'Browser opened — authorize the app and the token will fill in automatically.';
+      try {
+        const r = await fetch('/twitch/auth/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId })
+        });
+        const data = await r.json();
+        if (data.redirectUri) {
+          statusText.textContent = `Waiting... redirect_uri: ${data.redirectUri}`;
+        }
+      } catch {
+        btn.textContent = '🔑 Authorize';
+        btn.classList.remove('disabled');
+        statusText.textContent = 'Could not open browser. Make sure the listener is running.';
+      }
+    }
 
     const isElectron = !!window.electronAPI;
 
@@ -694,6 +1042,7 @@
         if (saved.MEDIA_CONTROL_MODE) setMediaModeUI(saved.MEDIA_CONTROL_MODE);
         if (saved.SONG_REQUEST_MODE) setSrModeUI(saved.SONG_REQUEST_MODE);
         document.getElementById('cfg-sr-enabled').checked = saved.SONG_REQUEST_ENABLED !== 'false';
+        updateOAuthLink();
       } catch {}
     }
 

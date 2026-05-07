@@ -8,34 +8,47 @@ const { autoUpdater } = require('electron-updater');
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
-const store = new Store({
-  schema: {
-    JELLYFIN_URL: { type: 'string', default: '' },
-    JELLYFIN_API_KEY: { type: 'string', default: '' },
-    JELLYFIN_USERNAME: { type: 'string', default: '' },
-    JELLYFIN_PASSWORD: { type: 'string', default: '' },
-    JELLYFIN_DEVICE_ID: { type: 'string', default: '' },
-    OBS_HOST: { type: 'string', default: 'localhost' },
-    OBS_PORT: { type: 'string', default: '4455' },
-    OBS_PASSWORD: { type: 'string', default: '' },
-    LISTENER_PORT: { type: 'string', default: '3000' },
-    TWITCH_USERNAME: { type: 'string', default: '' },
-    TWITCH_OAUTH: { type: 'string', default: '' },
-    TWITCH_CHANNEL: { type: 'string', default: '' },
-    TWITCH_CLIENT_ID: { type: 'string', default: '' },
-    SCRIPT_ALLOWLIST: { type: 'string', default: '' },
-    // Media control mode: 'jellyfin' or 'os'
-    MEDIA_CONTROL_MODE: { type: 'string', default: 'jellyfin' },
-    // Song request mode: 'chat' (!sr command), 'channel_points' (redeem), or 'both'
-    SONG_REQUEST_MODE: { type: 'string', default: 'chat' },
-    // The exact name of the channel point reward used for song requests (channel_points mode)
-    SONG_REQUEST_REDEEM_NAME: { type: 'string', default: '' },
-    // Whether song requests are enabled at all
-    SONG_REQUEST_ENABLED: { type: 'string', default: 'true' },
-    // JSON map of redeem title -> action config
-    REDEEM_ACTIONS: { type: 'string', default: '{}' },
-  }
-});
+// electron-store schema — all keys optional strings with safe defaults.
+// We keep previously-used keys in the schema so stored values don't cause
+// validation errors on upgrade. Wrap construction so a corrupted store
+// doesn't crash the main process.
+const STORE_SCHEMA = {
+  JELLYFIN_URL:             { type: 'string', default: '' },
+  JELLYFIN_API_KEY:         { type: 'string', default: '' },
+  JELLYFIN_USERNAME:        { type: 'string', default: '' },
+  JELLYFIN_PASSWORD:        { type: 'string', default: '' },
+  JELLYFIN_DEVICE_ID:       { type: 'string', default: '' },
+  OBS_HOST:                 { type: 'string', default: 'localhost' },
+  OBS_PORT:                 { type: 'string', default: '4455' },
+  OBS_PASSWORD:             { type: 'string', default: '' },
+  LISTENER_PORT:            { type: 'string', default: '3000' },
+  TWITCH_USERNAME:          { type: 'string', default: '' },  // kept for backwards compat
+  TWITCH_OAUTH:             { type: 'string', default: '' },
+  TWITCH_CHANNEL:           { type: 'string', default: '' },
+  TWITCH_CLIENT_ID:         { type: 'string', default: '' },
+  TWITCH_BOT_USERNAME:      { type: 'string', default: '' },
+  TWITCH_BOT_OAUTH:         { type: 'string', default: '' },
+  TWITCH_CLIENT_SECRET:     { type: 'string', default: '' },
+  SCRIPT_ALLOWLIST:         { type: 'string', default: '' },
+  COMMANDS_CONFIG:          { type: 'string', default: '{}' },
+  REDEEM_ACTIONS:           { type: 'string', default: '{}' },
+  MEDIA_CONTROL_MODE:       { type: 'string', default: 'jellyfin' },
+  SONG_REQUEST_MODE:        { type: 'string', default: 'chat' },
+  SONG_REQUEST_REDEEM_NAME: { type: 'string', default: '' },
+  SONG_REQUEST_ENABLED:     { type: 'string', default: 'true' },
+};
+
+let store;
+try {
+  store = new Store({ schema: STORE_SCHEMA });
+} catch (err) {
+  // Schema mismatch from a previous version — clear and start fresh
+  console.error('Store schema error, clearing store:', err.message);
+  const Store2 = require('electron-store');
+  store = new Store2();
+  store.clear();
+  store = new Store2({ schema: STORE_SCHEMA });
+}
 
 let mainWindow;
 let listenerProcess;
@@ -55,7 +68,11 @@ function getConfig() {
     TWITCH_OAUTH: store.get('TWITCH_OAUTH'),
     TWITCH_CHANNEL: store.get('TWITCH_CHANNEL'),
     TWITCH_CLIENT_ID: store.get('TWITCH_CLIENT_ID'),
+    TWITCH_BOT_USERNAME: store.get('TWITCH_BOT_USERNAME'),
+    TWITCH_BOT_OAUTH: store.get('TWITCH_BOT_OAUTH'),
+    TWITCH_CLIENT_SECRET: store.get('TWITCH_CLIENT_SECRET'),
     SCRIPT_ALLOWLIST: store.get('SCRIPT_ALLOWLIST'),
+    COMMANDS_CONFIG: store.get('COMMANDS_CONFIG'),
     MEDIA_CONTROL_MODE: store.get('MEDIA_CONTROL_MODE'),
     SONG_REQUEST_MODE: store.get('SONG_REQUEST_MODE'),
     SONG_REQUEST_REDEEM_NAME: store.get('SONG_REQUEST_REDEEM_NAME'),
@@ -74,14 +91,27 @@ function startListener(config) {
     listenerProcess = null;
   }
 
-  listenerProcess = fork(listenerPath, [], {
-    env: { ...process.env, ...config },
-    silent: true
-  });
+  try {
+    listenerProcess = fork(listenerPath, [], {
+      env: { ...process.env, ...config },
+      silent: true
+    });
+  } catch (err) {
+    console.error('Failed to fork listener:', err.message);
+    return;
+  }
 
   listenerProcess.stdout?.on('data', (data) => console.log('[listener]', data.toString().trim()));
   listenerProcess.stderr?.on('data', (data) => console.error('[listener error]', data.toString().trim()));
-  listenerProcess.on('exit', (code) => console.log(`Listener exited with code ${code}`));
+  listenerProcess.on('error', (err) => console.error('[listener fork error]', err.message));
+  listenerProcess.on('exit', (code, signal) => {
+    console.log(`Listener exited with code ${code} signal ${signal}`);
+    // Auto-restart after 3s if it crashed (not a deliberate kill)
+    if (code !== 0 && code !== null) {
+      console.log('Listener crashed — restarting in 3s');
+      setTimeout(() => startListener(getConfig()), 3000);
+    }
+  });
 }
 
 function createWindow() {
@@ -166,6 +196,69 @@ autoUpdater.on('error', (err) => {
 ipcMain.handle('check-for-updates', () => {
   if (app.isPackaged) autoUpdater.checkForUpdates();
   return { ok: true };
+});
+
+// Twitch OAuth popup — opens an Electron BrowserWindow, intercepts the
+// http://localhost redirect before the browser tries to load port 80,
+// and returns the token directly without needing a callback server.
+ipcMain.handle('twitch-oauth-popup', (event, { clientId, scopes }) => {
+  return new Promise((resolve, reject) => {
+    const authWin = new BrowserWindow({
+      width: 600,
+      height: 700,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: false, contextIsolation: true }
+    });
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: 'http://localhost',
+      response_type: 'token',
+      scope: scopes,
+      force_verify: 'true'
+    });
+
+    authWin.loadURL(`https://id.twitch.tv/oauth2/authorize?${params}`);
+
+    let settled = false;
+    function settle(fn) {
+      if (settled) return;
+      settled = true;
+      // Resolve/reject first, then destroy so the closed handler is a no-op
+      fn();
+      authWin.destroy();
+    }
+
+    function handleUrl(e, url) {
+      if (!url.startsWith('http://localhost')) return false;
+      e.preventDefault(); // stop the navigation from leaking to the system browser
+      // Token lives in the fragment: http://localhost/#access_token=xxx&...
+      const hashIndex = url.indexOf('#');
+      if (hashIndex !== -1) {
+        const fragment = url.slice(hashIndex + 1);
+        const p = new URLSearchParams(fragment);
+        const token = p.get('access_token');
+        if (token) {
+          settle(() => resolve({ token: `oauth:${token}` }));
+          return true;
+        }
+      }
+      // Error case: http://localhost/?error=access_denied&...
+      try {
+        const u = new URL(url);
+        const err = u.searchParams.get('error');
+        if (err) {
+          settle(() => reject(new Error(u.searchParams.get('error_description') || err)));
+          return true;
+        }
+      } catch {}
+      return false;
+    }
+
+    authWin.webContents.on('will-redirect', (e, url) => { handleUrl(e, url); });
+    authWin.webContents.on('will-navigate', (e, url) => { handleUrl(e, url); });
+    authWin.on('closed', () => { if (!settled) { settled = true; reject(new Error('Cancelled')); } });
+  });
 });
 
 ipcMain.handle('get-settings', () => getConfig());
