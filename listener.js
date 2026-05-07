@@ -442,16 +442,22 @@ async function sendChatMessage(text) {
   try {
     // Need broadcaster ID to address the chat room, and sender ID for the bot (or broadcaster)
     const broadcasterId = await getTwitchUserId(channel, rawToken);
-    if (!broadcasterId) return;
+    if (!broadcasterId) {
+      addLog('system', 'chat', `Could not resolve broadcaster ID for channel "${channel}"`, false);
+      return;
+    }
 
     // Sender is the bot account if username is set, otherwise broadcaster sends as themselves
     const botUsername = process.env.TWITCH_BOT_USERNAME || '';
     const senderId = botUsername
       ? await getTwitchUserId(botUsername, rawToken)
       : broadcasterId;
-    if (!senderId) return;
+    if (!senderId) {
+      addLog('system', 'chat', `Could not resolve sender ID for bot username "${botUsername}" — is it correct?`, false);
+      return;
+    }
 
-    await fetch('https://api.twitch.tv/helix/chat/messages', {
+    const chatRes = await fetch('https://api.twitch.tv/helix/chat/messages', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${rawToken}`,
@@ -464,6 +470,10 @@ async function sendChatMessage(text) {
         message: text.slice(0, 500) // Twitch chat message limit
       })
     });
+    if (!chatRes.ok) {
+      const body = await chatRes.text().catch(() => '');
+      addLog('system', 'chat', `Chat send failed ${chatRes.status}: ${body}`, false);
+    }
   } catch (err) {
     addLog('system', 'chat', `Failed to send message: ${err.message}`, false);
   }
